@@ -118,8 +118,7 @@ fun DefaultAlarmSettingsScreen(
         ) {
             Text("Default alarm sound", style = MaterialTheme.typography.titleSmall)
             AlarmSoundPickerRow(
-                title = "Sound",
-                subtitle = defaultSoundTitle,
+                soundName = defaultSoundTitle,
                 pickerUri = settings.defaultAlarmSoundUri?.let { Uri.parse(it) }
                     ?: AlarmSoundUtils.systemDefaultUri(),
                 onSoundPicked = { uri ->

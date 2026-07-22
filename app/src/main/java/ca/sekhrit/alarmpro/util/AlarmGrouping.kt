@@ -64,7 +64,8 @@ object AlarmGrouping {
         alarms: List<Alarm>,
         groups: List<AlarmGroup>,
         now: LocalDateTime = LocalDateTime.now(),
-        sortByNextTrigger: Boolean = true
+        sortByNextTrigger: Boolean = true,
+        activeAlarmsFirst: Boolean = false
     ): List<ListEntry> {
         val groupedIds = alarms.mapNotNull { it.groupId }.toSet()
         val sections = mutableListOf<ListSection>()
@@ -74,11 +75,21 @@ object AlarmGrouping {
             .forEach { group ->
                 val labelMembers = membersOf(group.id, alarms)
                 if (labelMembers.isEmpty()) return@forEach
-                val displayMembers = sortAlarms(labelMembers, now, sortByNextTrigger)
+                val displayMembers = sortAlarms(
+                    labelMembers,
+                    now,
+                    sortByNextTrigger,
+                    activeAlarmsFirst
+                )
                 sections += ListSection.GroupSection(
                     group = group,
                     members = displayMembers,
-                    sortKey = sectionSortKey(labelMembers, now, sortByNextTrigger)
+                    sortKey = sectionSortKey(
+                        labelMembers,
+                        now,
+                        sortByNextTrigger,
+                        activeAlarmsFirst
+                    )
                 )
             }
 
@@ -87,7 +98,7 @@ object AlarmGrouping {
             .forEach { alarm ->
                 sections += ListSection.UngroupedAlarm(
                     alarm = alarm,
-                    sortKey = alarmSortKey(alarm, now, sortByNextTrigger)
+                    sortKey = alarmSortKey(alarm, now, sortByNextTrigger, activeAlarmsFirst)
                 )
             }
 
@@ -128,26 +139,32 @@ object AlarmGrouping {
     private fun sortAlarms(
         alarms: List<Alarm>,
         now: LocalDateTime,
-        sortByNextTrigger: Boolean
+        sortByNextTrigger: Boolean,
+        activeAlarmsFirst: Boolean
     ): List<Alarm> {
+        val timeComparator = compareBy<Alarm> {
+            if (sortByNextTrigger) {
+                RepeatCalculator.nextTriggerMillis(it, now)
+            } else {
+                it.time.toSecondOfDay().toLong()
+            }
+        }
         return alarms.sortedWith(
-            compareBy<Alarm> { !it.isEnabled }
-                .thenBy {
-                    if (sortByNextTrigger) {
-                        RepeatCalculator.nextTriggerMillis(it, now)
-                    } else {
-                        it.time.toSecondOfDay().toLong()
-                    }
-                }
+            if (activeAlarmsFirst) {
+                compareBy<Alarm> { !it.isEnabled }.then(timeComparator)
+            } else {
+                timeComparator
+            }
         )
     }
 
     private fun alarmSortKey(
         alarm: Alarm,
         now: LocalDateTime,
-        sortByNextTrigger: Boolean
+        sortByNextTrigger: Boolean,
+        activeAlarmsFirst: Boolean
     ): Long {
-        if (!alarm.isEnabled) return Long.MAX_VALUE
+        if (activeAlarmsFirst && !alarm.isEnabled) return Long.MAX_VALUE
         return if (sortByNextTrigger) {
             RepeatCalculator.nextTriggerMillis(alarm, now)
         } else {
@@ -158,14 +175,15 @@ object AlarmGrouping {
     private fun sectionSortKey(
         members: List<Alarm>,
         now: LocalDateTime,
-        sortByNextTrigger: Boolean
+        sortByNextTrigger: Boolean,
+        activeAlarmsFirst: Boolean
     ): Long {
-        val enabled = members.filter { it.isEnabled }
-        if (enabled.isEmpty()) return Long.MAX_VALUE
+        val sortableMembers = if (activeAlarmsFirst) members.filter { it.isEnabled } else members
+        if (sortableMembers.isEmpty()) return Long.MAX_VALUE
         return if (sortByNextTrigger) {
-            enabled.minOf { RepeatCalculator.nextTriggerMillis(it, now) }
+            sortableMembers.minOf { RepeatCalculator.nextTriggerMillis(it, now) }
         } else {
-            enabled.minOf { it.time.toSecondOfDay().toLong() }
+            sortableMembers.minOf { it.time.toSecondOfDay().toLong() }
         }
     }
 }

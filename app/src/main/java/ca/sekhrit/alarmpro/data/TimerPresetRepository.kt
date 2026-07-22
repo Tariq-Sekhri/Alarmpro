@@ -8,9 +8,9 @@ class TimerPresetRepository(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun loadPresets(): List<TimerPreset> {
-        val raw = prefs.getString(KEY_PRESETS, null) ?: return defaultPresets().also { savePresets(it) }
+        val raw = prefs.getString(KEY_PRESETS, null) ?: return emptyList()
         val array = JSONArray(raw)
-        if (array.length() == 0) return defaultPresets().also { savePresets(it) }
+        if (array.length() == 0) return emptyList()
         return buildList {
             for (index in 0 until array.length()) {
                 val item = array.getJSONObject(index)
@@ -38,15 +38,6 @@ class TimerPresetRepository(context: Context) {
         }
         prefs.edit().putString(KEY_PRESETS, array.toString()).apply()
     }
-
-    private fun defaultPresets(): List<TimerPreset> = listOf(
-        TimerPreset(totalSeconds = 10 * 60),
-        TimerPreset(totalSeconds = 15 * 60),
-        TimerPreset(totalSeconds = 30 * 60),
-        TimerPreset(totalSeconds = 60 * 60),
-        TimerPreset(totalSeconds = 80 * 60),
-        TimerPreset(totalSeconds = 124 * 60)
-    )
 
     companion object {
         private const val PREFS_NAME = "alarmpro_prefs"

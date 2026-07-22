@@ -124,6 +124,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
     var searchQuery by remember { mutableStateOf("") }
     var searchFieldFocused by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(AlarmSortMode.NEXT_TRIGGER) }
+    var activeAlarmsFirst by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var renameGroupId by remember { mutableStateOf<String?>(null) }
     var renameGroupLabel by remember { mutableStateOf("") }
@@ -185,19 +186,22 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
         }
     }
 
-    val listEntries = remember(filteredAlarms, groups, searchQuery, sortMode, now) {
+    val listEntries = remember(filteredAlarms, groups, searchQuery, sortMode, activeAlarmsFirst, now) {
         if (searchQuery.isNotBlank()) {
+            val timeComparator = compareBy<Alarm> {
+                if (sortMode == AlarmSortMode.NEXT_TRIGGER) {
+                    TimeUtils.nextTriggerMillis(it, now)
+                } else {
+                    it.time.toSecondOfDay().toLong()
+                }
+            }
+            val comparator = if (activeAlarmsFirst) {
+                compareBy<Alarm> { !it.isEnabled }.then(timeComparator)
+            } else {
+                timeComparator
+            }
             filteredAlarms
-                .sortedWith(
-                    compareBy<Alarm> { !it.isEnabled }
-                        .thenBy {
-                            if (sortMode == AlarmSortMode.NEXT_TRIGGER) {
-                                TimeUtils.nextTriggerMillis(it, now)
-                            } else {
-                                it.time.toSecondOfDay().toLong()
-                            }
-                        }
-                )
+                .sortedWith(comparator)
                 .map { alarm ->
                     val group = groups.find { it.id == alarm.groupId }
                     val members = alarm.groupId?.let { AlarmGrouping.membersOf(it, allAlarms) }.orEmpty()
@@ -212,7 +216,8 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                 alarms = filteredAlarms,
                 groups = groups,
                 now = now,
-                sortByNextTrigger = sortMode == AlarmSortMode.NEXT_TRIGGER
+                sortByNextTrigger = sortMode == AlarmSortMode.NEXT_TRIGGER,
+                activeAlarmsFirst = activeAlarmsFirst
             )
         }
     }
@@ -455,6 +460,19 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                             }
                                         }
                                     )
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Active alarms first") },
+                                        onClick = {
+                                            activeAlarmsFirst = !activeAlarmsFirst
+                                            showSortMenu = false
+                                        },
+                                        leadingIcon = {
+                                            if (activeAlarmsFirst) {
+                                                Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                            }
+                                        }
+                                    )
                                 }
                             }
                             IconButton(onClick = { if (showSearch) closeSearch() else showSearch = true }) {
@@ -538,10 +556,33 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = if (allAlarms.isEmpty()) "No alarms yet" else "No matching alarms",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (allAlarms.isEmpty()) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AlarmAdd,
+                            contentDescription = null,
+                            tint = ElectricCyan,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = "No alarms set",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Text(
+                            text = "Create an alarm to get started.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "No matching alarms",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         } else {
             LazyColumn(
@@ -560,6 +601,14 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                         NextAlarmHeader(
                             timeLine = nextHeader.timeLine,
                             countdownLine = nextHeader.countdownLine
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                } else if (allAlarms.isNotEmpty() && searchQuery.isBlank()) {
+                    item(key = "no_active_alarm_header") {
+                        NextAlarmHeader(
+                            timeLine = "No active alarms",
+                            countdownLine = "Turn on an alarm to schedule it"
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                     }

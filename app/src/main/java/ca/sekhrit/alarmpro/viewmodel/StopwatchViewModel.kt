@@ -125,8 +125,8 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
-    fun addCustomMark(hours: Int, minutes: Int) {
-        val targetMs = (hours * 3600L + minutes * 60L) * 1000L
+    fun addCustomMark(hours: Int, minutes: Int, seconds: Int) {
+        val targetMs = (hours * 3600L + minutes * 60L + seconds) * 1000L
         if (targetMs <= 0L) return
         addMarkFromMs(targetMs)
     }

@@ -1,16 +1,12 @@
 package ca.sekhrit.alarmpro.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,7 +41,6 @@ fun ClockScreen(
 ) {
     val settings by viewModel.settings.collectAsState()
     var now by remember { mutableStateOf(LocalDateTime.now()) }
-    var showMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -72,20 +67,8 @@ fun ClockScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
                 actions = {
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-                        }
-                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Settings") },
-                                onClick = {
-                                    showMenu = false
-                                    onOpenSettings()
-                                },
-                                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
-                            )
-                        }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )

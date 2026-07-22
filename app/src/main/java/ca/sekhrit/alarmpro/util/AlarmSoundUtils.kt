@@ -5,6 +5,7 @@ import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.AppSettings
 
@@ -28,17 +29,27 @@ object AlarmSoundUtils {
     fun getTitle(context: Context, uri: Uri?): String {
         if (uri == null) return "System default"
         return try {
-            RingtoneManager.getRingtone(context, uri)?.getTitle(context) ?: "Custom sound"
+            RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+                ?: documentDisplayName(context, uri)
+                ?: "Custom sound"
         } catch (_: Exception) {
-            "Custom sound"
+            documentDisplayName(context, uri) ?: "Custom sound"
         }
     }
 
-    fun displayTitle(context: Context, soundUri: String?, settings: AppSettings): String {
-        return if (soundUri.isNullOrBlank()) {
-            "Default (${getTitle(context, settings.defaultAlarmSoundUri?.let { Uri.parse(it) } ?: systemDefaultUri())})"
-        } else {
-            getTitle(context, Uri.parse(soundUri))
+    private fun documentDisplayName(context: Context, uri: Uri): String? {
+        return try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 

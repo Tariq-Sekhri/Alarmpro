@@ -1,6 +1,10 @@
 package ca.sekhrit.alarmpro.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,22 +17,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HourglassEmpty
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TimerOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -47,18 +51,30 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.TimerPreset
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
@@ -66,6 +82,7 @@ import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.ui.theme.ElevatedSurface
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
+import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,8 +95,31 @@ fun TimerScreen(
     val finishedLabels by viewModel.finishedLabels.collectAsState()
     val clockMillis by viewModel.clockMillis.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
     var editPreset by remember { mutableStateOf<TimerPreset?>(null) }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(emptySet<String>()) }
+
+    fun exitSelectionMode() {
+        selectionMode = false
+        selectedIds = emptySet()
+    }
+
+    fun toggleSelected(presetId: String) {
+        selectedIds = if (presetId in selectedIds) selectedIds - presetId else selectedIds + presetId
+        if (selectedIds.isEmpty()) selectionMode = false
+    }
+
+    fun enterSelectionMode(presetId: String) {
+        selectionMode = true
+        selectedIds = setOf(presetId)
+    }
+
+    BackHandler(enabled = selectionMode) { exitSelectionMode() }
+
+    LaunchedEffect(presets) {
+        selectedIds = selectedIds.intersect(presets.map { it.id }.toSet())
+        if (selectedIds.isEmpty()) selectionMode = false
+    }
 
     LaunchedEffect(Unit) {
         viewModel.syncFromStorage()
@@ -101,10 +141,6 @@ fun TimerScreen(
     if (showAddDialog) {
         TimerPresetDialog(
             onDismiss = { showAddDialog = false },
-            onSettings = {
-                showAddDialog = false
-                onOpenSettings()
-            },
             onConfirm = { seconds, label ->
                 viewModel.addPreset(seconds, label)
                 showAddDialog = false
@@ -117,10 +153,6 @@ fun TimerScreen(
             initialTotalSeconds = preset.totalSeconds,
             initialLabel = preset.label,
             onDismiss = { editPreset = null },
-            onSettings = {
-                editPreset = null
-                onOpenSettings()
-            },
             onConfirm = { seconds, label ->
                 viewModel.updatePreset(preset, seconds, label)
                 editPreset = null
@@ -135,36 +167,47 @@ fun TimerScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Countdown Timer") },
+                title = {
+                    Text(if (selectionMode) "${selectedIds.size} selected" else "Countdown Timer")
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
-                actions = {
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                navigationIcon = {
+                    if (selectionMode) {
+                        IconButton(onClick = { exitSelectionMode() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit selection")
                         }
-                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Settings") },
-                                onClick = {
-                                    showMenu = false
-                                    onOpenSettings()
-                                },
-                                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
-                            )
+                    }
+                },
+                actions = {
+                    if (selectionMode) {
+                        IconButton(
+                            onClick = {
+                                viewModel.deletePresets(selectedIds)
+                                exitSelectionMode()
+                            },
+                            enabled = selectedIds.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete selected timers")
+                        }
+                    } else {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
                         }
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = ElectricCyan,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Default.HourglassEmpty, contentDescription = "Add timer")
+            if (!selectionMode) {
+                FloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    containerColor = ElectricCyan,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.HourglassEmpty, contentDescription = "Add timer")
+                }
             }
         },
         floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center
@@ -212,7 +255,7 @@ fun TimerScreen(
                     preset = preset,
                     isRunning = isRunningPreset,
                     displaySeconds = remainingSeconds,
-                    progress = if (isRunningPreset && timer != null && timer.totalSeconds > 0) {
+                    progress = if (isRunningPreset && timer.totalSeconds > 0) {
                         1f - (remainingSeconds.toFloat() / timer.totalSeconds.toFloat())
                     } else {
                         0f
@@ -220,13 +263,18 @@ fun TimerScreen(
                     onRestart = { viewModel.restartPreset(preset) },
                     onToggle = { enabled -> viewModel.togglePreset(preset, enabled) },
                     onEdit = { editPreset = preset },
-                    onDelete = { viewModel.deletePreset(preset) }
+                    onDelete = { viewModel.deletePreset(preset) },
+                    selectionMode = selectionMode,
+                    selected = preset.id in selectedIds,
+                    onToggleSelection = { toggleSelected(preset.id) },
+                    onEnterSelection = { enterSelectionMode(preset.id) }
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TimerPresetCard(
     preset: TimerPreset,
@@ -236,10 +284,13 @@ private fun TimerPresetCard(
     onRestart: () -> Unit,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onToggleSelection: () -> Unit,
+    onEnterSelection: () -> Unit
 ) {
     val shape = RoundedCornerShape(16.dp)
-    var showMenu by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -247,6 +298,12 @@ private fun TimerPresetCard(
             .padding(vertical = 6.dp)
             .clip(shape)
             .background(if (isRunning) CardSurface else ElevatedSurface.copy(alpha = 0.75f))
+            .combinedClickable(
+                onClick = { if (selectionMode) onToggleSelection() },
+                onLongClick = {
+                    if (selectionMode) onToggleSelection() else onEnterSelection()
+                }
+            )
     ) {
         Row(
             modifier = Modifier
@@ -254,65 +311,50 @@ private fun TimerPresetCard(
                 .padding(horizontal = 12.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onRestart) {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = "Restart timer",
-                    tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onToggleSelection() })
+            } else {
+                IconButton(onClick = onRestart) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Restart timer",
+                        tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = TimeUtils.formatDuration(displaySeconds.toLong()),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.combinedClickable(
+                        onClick = { if (selectionMode) onToggleSelection() else onEdit() },
+                        onLongClick = {
+                            if (selectionMode) onToggleSelection() else onEnterSelection()
+                        }
+                    )
+                )
                 if (preset.label.isNotBlank()) {
                     Text(
                         text = preset.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = TimeUtils.formatDuration(displaySeconds.toLong()),
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    Text(
-                        text = TimeUtils.formatDuration(displaySeconds.toLong()),
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
-            Switch(
-                checked = isRunning,
-                onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(
-                    checkedTrackColor = ElectricCyan.copy(alpha = 0.4f),
-                    checkedThumbColor = ElectricCyan
+            if (!selectionMode) {
+                Switch(
+                    checked = isRunning,
+                    onCheckedChange = onToggle,
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = ElectricCyan.copy(alpha = 0.4f),
+                        checkedThumbColor = ElectricCyan
+                    )
                 )
-            )
-
-            Box {
-                IconButton(onClick = { showMenu = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Timer options")
-                }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Edit") },
-                        onClick = {
-                            showMenu = false
-                            onEdit()
-                        },
-                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Delete") },
-                        onClick = {
-                            showMenu = false
-                            onDelete()
-                        },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) }
-                    )
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete timer")
                 }
             }
         }
@@ -333,10 +375,9 @@ private fun TimerPresetCard(
 
 @Composable
 private fun TimerPresetDialog(
-    initialTotalSeconds: Int = 5 * 60,
+    initialTotalSeconds: Int = 0,
     initialLabel: String = "",
     onDismiss: () -> Unit,
-    onSettings: () -> Unit,
     onConfirm: (Int, String) -> Unit
 ) {
     var hours by remember(initialTotalSeconds) { mutableIntStateOf(initialTotalSeconds / 3600) }
@@ -349,63 +390,78 @@ private fun TimerPresetDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp),
-            color = CardSurface,
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF293743),
             tonalElevation = 8.dp
         ) {
             Column {
                 Text(
                     text = "Timer Duration:",
-                    style = MaterialTheme.typography.titleLarge,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Color.White,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(Color(0xFF465561), Color(0xFF2C3945))
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 11.dp)
                 )
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(start = 15.dp, end = 15.dp, top = 17.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    DurationStepper(
+                    DurationWheel(
                         label = "hour",
                         value = hours,
-                        onDecrement = { hours = (hours + 99) % 100 },
-                        onIncrement = { hours = (hours + 1) % 100 }
+                        maxValue = 99,
+                        onValueChange = { hours = it },
+                        modifier = Modifier.weight(1f)
                     )
                     Text(
                         text = ":",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .width(28.dp)
+                            .padding(top = 93.dp)
                     )
-                    DurationStepper(
+                    DurationWheel(
                         label = "min",
                         value = minutes,
-                        onDecrement = { minutes = (minutes + 59) % 60 },
-                        onIncrement = { minutes = (minutes + 1) % 60 }
+                        maxValue = 59,
+                        onValueChange = { minutes = it },
+                        modifier = Modifier.weight(1f)
                     )
                     Text(
                         text = ":",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .width(28.dp)
+                            .padding(top = 93.dp)
                     )
-                    DurationStepper(
+                    DurationWheel(
                         label = "sec",
                         value = seconds,
-                        onDecrement = { seconds = (seconds + 59) % 60 },
-                        onIncrement = { seconds = (seconds + 1) % 60 }
+                        maxValue = 59,
+                        onValueChange = { seconds = it },
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 18.dp),
+                        .padding(start = 19.dp, end = 19.dp, top = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -426,16 +482,17 @@ private fun TimerPresetDialog(
                                     if (label.isEmpty()) {
                                         Text(
                                             text = "none",
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = Color(0xFFB9BEC2),
+                                            maxLines = 1
                                         )
                                     }
                                     innerTextField()
                                 }
-                                HorizontalDivider(color = ElectricCyan, thickness = 2.dp)
+                                HorizontalDivider(color = Color(0xFFFFB300), thickness = 2.dp)
                             }
                         },
                         modifier = Modifier
-                            .weight(1f)
+                            .width(64.dp)
                             .padding(start = 8.dp)
                     )
                 }
@@ -443,13 +500,14 @@ private fun TimerPresetDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                        .padding(start = 8.dp, end = 8.dp, top = 5.dp, bottom = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onSettings) { Text("SETTINGS") }
+                    val buttonColors = ButtonDefaults.textButtonColors(contentColor = Color.White)
                     Spacer(modifier = Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text("CANCEL") }
+                    TextButton(onClick = onDismiss, colors = buttonColors) { Text("CANCEL") }
                     TextButton(
+                        colors = buttonColors,
                         onClick = {
                             val total = hours * 3600 + minutes * 60 + seconds
                             if (total > 0) onConfirm(total, label)
@@ -464,31 +522,152 @@ private fun TimerPresetDialog(
 }
 
 @Composable
-private fun DurationStepper(
+internal fun DurationWheel(
     label: String,
     value: Int,
-    onDecrement: () -> Unit,
-    onIncrement: () -> Unit
+    maxValue: Int,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    val valueCount = maxValue + 1
+    val initialCenter = remember {
+        val midpoint = 50_000
+        midpoint - (midpoint % valueCount) + value
+    }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialCenter - 1)
+    val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
+    val centerIndex by remember {
+        derivedStateOf { listState.firstVisibleItemIndex + 1 }
+    }
+    var editing by remember { mutableStateOf(false) }
+    var inputText by remember { mutableStateOf(value.toString()) }
+    var fieldWasFocused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val currentValue by rememberUpdatedState(value)
+    val isEditing by rememberUpdatedState(editing)
+
+    fun commitInput() {
+        if (!editing) return
+        val enteredValue = inputText.toIntOrNull()?.coerceIn(0, maxValue) ?: value
+        editing = false
+        fieldWasFocused = false
+        focusManager.clearFocus()
+        onValueChange(enteredValue)
+    }
+
+    LaunchedEffect(listState) {
+        androidx.compose.runtime.snapshotFlow { listState.isScrollInProgress }
+            .filter { !it }
+            .collect {
+                val selectedValue = Math.floorMod(listState.firstVisibleItemIndex + 1, valueCount)
+                if (!isEditing && selectedValue != currentValue) {
+                    onValueChange(selectedValue)
+                }
+            }
+    }
+
+    LaunchedEffect(value, editing) {
+        if (editing) return@LaunchedEffect
+        val currentValue = Math.floorMod(listState.firstVisibleItemIndex + 1, valueCount)
+        if (currentValue != value) {
+            var distance = value - currentValue
+            if (distance > valueCount / 2) distance -= valueCount
+            if (distance < -(valueCount / 2)) distance += valueCount
+            listState.animateScrollToItem(listState.firstVisibleItemIndex + distance)
+        }
+    }
+
+    LaunchedEffect(editing) {
+        if (editing) {
+            inputText = value.toString()
+            focusRequester.requestFocus()
+        }
+    }
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = Color.White
         )
-        IconButton(onClick = onIncrement) {
-            Icon(Icons.Default.Add, contentDescription = "Increase $label")
-        }
-        Text(
-            text = value.toString().padStart(2, '0'),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.width(56.dp)
-        )
-        IconButton(onClick = onDecrement) {
-            Icon(Icons.Default.Remove, contentDescription = "Decrease $label")
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(132.dp)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                flingBehavior = flingBehavior,
+                userScrollEnabled = !editing
+            ) {
+                items(count = 100_000, key = { it }) { index ->
+                    val itemValue = index % valueCount
+                    val isCenter = index == centerIndex
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isCenter && editing) {
+                            BasicTextField(
+                                value = inputText,
+                                onValueChange = { newText ->
+                                    if (newText.length <= 2 && newText.all(Char::isDigit)) {
+                                        inputText = newText
+                                    }
+                                },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                    color = Color.White,
+                                    textAlign = TextAlign.Center
+                                ),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(onDone = { commitInput() }),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequester)
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused) {
+                                            fieldWasFocused = true
+                                        } else if (fieldWasFocused) {
+                                            commitInput()
+                                        }
+                                    }
+                            )
+                        } else {
+                            Text(
+                                text = itemValue.toString(),
+                                fontSize = 14.sp,
+                                color = if (isCenter) Color.White else Color(0xFF858E95),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = isCenter) { editing = true }
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(
+                color = Color(0xFFB7BDC1),
+                thickness = 2.dp,
+                modifier = Modifier.padding(top = 43.dp)
+            )
+            HorizontalDivider(
+                color = Color(0xFF9CA4A9),
+                thickness = 2.dp,
+                modifier = Modifier.padding(top = 87.dp)
+            )
         }
     }
 }

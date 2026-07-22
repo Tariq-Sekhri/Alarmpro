@@ -13,19 +13,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Scaffold
@@ -34,14 +31,14 @@ import androidx.compose.material3.TopAppBarDefaults
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElevatedSurface
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,6 +51,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
@@ -61,6 +60,8 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
@@ -81,7 +82,6 @@ fun StopwatchScreen(
     var showCustomDialog by remember { mutableStateOf(false) }
     var alertsExpanded by remember { mutableStateOf(true) }
     var lapsExpanded by remember { mutableStateOf(true) }
-    var showMenu by remember { mutableStateOf(false) }
     val currentLapMs = state.laps.lastOrNull()?.let { state.elapsedMs - it.totalTimeMs }
         ?: state.elapsedMs
     val markPresets = listOf(
@@ -114,8 +114,8 @@ fun StopwatchScreen(
     if (showCustomDialog) {
         CustomMarkDialog(
             onDismiss = { showCustomDialog = false },
-            onAdd = { hours, minutes ->
-                viewModel.addCustomMark(hours, minutes)
+            onAdd = { hours, minutes, seconds ->
+                viewModel.addCustomMark(hours, minutes, seconds)
                 showCustomDialog = false
             }
         )
@@ -130,20 +130,8 @@ fun StopwatchScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
                 actions = {
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-                        }
-                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Settings") },
-                                onClick = {
-                                    showMenu = false
-                                    onOpenSettings()
-                                },
-                                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
-                            )
-                        }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )
@@ -357,56 +345,99 @@ private fun CollapsibleSection(
 @Composable
 private fun CustomMarkDialog(
     onDismiss: () -> Unit,
-    onAdd: (hours: Int, minutes: Int) -> Unit
+    onAdd: (hours: Int, minutes: Int, seconds: Int) -> Unit
 ) {
     var hours by remember { mutableIntStateOf(0) }
-    var minutes by remember { mutableIntStateOf(30) }
+    var minutes by remember { mutableIntStateOf(0) }
+    var seconds by remember { mutableIntStateOf(0) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Custom alert") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF293743),
+            tonalElevation = 8.dp
+        ) {
+            Column {
+                Text(
+                    text = "Alert Time:",
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(Color(0xFF465561), Color(0xFF2C3945))
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 11.dp)
+                )
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 15.dp, end = 15.dp, top = 17.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    DurationWheel(
+                        label = "hour",
+                        value = hours,
+                        maxValue = 99,
+                        onValueChange = { hours = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = ":",
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.width(28.dp).padding(top = 93.dp)
+                    )
+                    DurationWheel(
+                        label = "min",
+                        value = minutes,
+                        maxValue = 59,
+                        onValueChange = { minutes = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = ":",
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.width(28.dp).padding(top = 93.dp)
+                    )
+                    DurationWheel(
+                        label = "sec",
+                        value = seconds,
+                        maxValue = 59,
+                        onValueChange = { seconds = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 8.dp, end = 8.dp, top = 5.dp, bottom = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Hours")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { hours = (hours + 23) % 24 }) { Text("-") }
-                        Text("$hours", style = MaterialTheme.typography.titleLarge)
-                        OutlinedButton(onClick = { hours = (hours + 1) % 24 }) { Text("+") }
+                    Spacer(modifier = Modifier.weight(1f))
+                    val buttonColors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+                    TextButton(onClick = onDismiss, colors = buttonColors) { Text("CANCEL") }
+                    TextButton(
+                        onClick = { onAdd(hours, minutes, seconds) },
+                        enabled = hours > 0 || minutes > 0 || seconds > 0,
+                        colors = buttonColors
+                    ) {
+                        Text("ADD")
                     }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Minutes")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { minutes = (minutes + 59) % 60 }) { Text("-") }
-                        Text("$minutes", style = MaterialTheme.typography.titleLarge)
-                        OutlinedButton(onClick = { minutes = (minutes + 1) % 60 }) { Text("+") }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onAdd(hours, minutes) },
-                enabled = hours > 0 || minutes > 0
-            ) {
-                Text("Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
             }
         }
-    )
+    }
 }
 
 @Composable

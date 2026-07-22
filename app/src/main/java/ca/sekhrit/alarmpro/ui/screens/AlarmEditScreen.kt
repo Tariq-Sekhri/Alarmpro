@@ -94,11 +94,9 @@ fun AlarmEditScreen(
     var snoozeEnabled by remember(existing?.id) { mutableStateOf(existing?.snoozeEnabled ?: settings.defaultSnoozeEnabled) }
     var useDefaultSnoozeLength by remember(existing?.id) { mutableStateOf(existing?.snoozeMinutes == null) }
     var customSnoozeMinutes by remember(existing?.id) { mutableIntStateOf(existing?.snoozeMinutes ?: settings.defaultSnoozeMinutes) }
-    var showAdvanced by remember { mutableStateOf(false) }
     var selectedGroupId by remember(existing?.id) { mutableStateOf(existing?.groupId) }
     var createNewGroup by remember(existing?.id) { mutableStateOf(false) }
     var newGroupName by remember(existing?.id) { mutableStateOf("") }
-    var useDefaultSound by remember(existing?.id) { mutableStateOf(existing?.soundUri == null) }
     var customSoundUri by remember(existing?.id) { mutableStateOf(existing?.soundUri) }
 
     val snoozeLengthOptions = listOf(5, 10, 15, 20, 30, 45, 60)
@@ -150,7 +148,7 @@ fun AlarmEditScreen(
             createNewGroup -> null
             else -> selectedGroupId
         }
-        val resolvedSoundUri = if (useDefaultSound) null else customSoundUri
+        val resolvedSoundUri = customSoundUri
         if (existing == null) {
             viewModel.addAlarm(
                 selectedTime,
@@ -280,39 +278,18 @@ fun AlarmEditScreen(
                 }
 
                 Text("Alarm sound", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = useDefaultSound,
-                        onClick = { useDefaultSound = true },
-                        label = { Text("Default") }
-                    )
-                    FilterChip(
-                        selected = !useDefaultSound,
-                        onClick = { useDefaultSound = false },
-                        label = { Text("Custom") }
-                    )
-                }
-                if (useDefaultSound) {
-                    Text(
-                        text = AlarmSoundUtils.displayTitle(context, null, settings),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    AlarmSoundPickerRow(
-                        title = "Custom sound",
-                        subtitle = AlarmSoundUtils.getTitle(
-                            context,
-                            customSoundUri?.let { Uri.parse(it) }
-                        ),
-                        pickerUri = customSoundUri?.let { Uri.parse(it) }
-                            ?: AlarmSoundUtils.resolvePickerUri(existing, settings),
-                        onSoundPicked = { uri ->
-                            customSoundUri = AlarmSoundUtils.uriToStorage(uri)
-                            useDefaultSound = false
-                        }
-                    )
-                }
+                AlarmSoundPickerRow(
+                    soundName = AlarmSoundUtils.getTitle(
+                        context,
+                        customSoundUri?.let { Uri.parse(it) }
+                            ?: AlarmSoundUtils.resolvePickerUri(existing, settings)
+                    ),
+                    pickerUri = customSoundUri?.let { Uri.parse(it) }
+                        ?: AlarmSoundUtils.resolvePickerUri(existing, settings),
+                    onSoundPicked = { uri ->
+                        customSoundUri = AlarmSoundUtils.uriToStorage(uri)
+                    }
+                )
 
                 Text("Alarm group", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -480,37 +457,28 @@ fun AlarmEditScreen(
                 )
 
                 Text("Advanced", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
-                OutlinedButton(
-                    onClick = { showAdvanced = !showAdvanced },
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (showAdvanced) "HIDE ADVANCED" else "SHOW ADVANCED")
+                    Text("Vibrate during alarm")
+                    Switch(checked = vibrate, onCheckedChange = { vibrate = it })
                 }
-
-                if (showAdvanced) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Vibrate during alarm")
-                        Switch(checked = vibrate, onCheckedChange = { vibrate = it })
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Speak time & label")
+                        Text(
+                            "Speaks when the alarm rings",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Speak time & label")
-                            Text(
-                                "Speaks when the alarm rings",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(checked = readLabelAloud, onCheckedChange = { readLabelAloud = it })
-                    }
+                    Switch(checked = readLabelAloud, onCheckedChange = { readLabelAloud = it })
                 }
             }
         }

@@ -125,8 +125,15 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deletePreset(preset: TimerPreset) {
-        stopPreset(preset, persist = false)
-        val updated = _presets.value.filter { it.id != preset.id }
+        deletePresets(setOf(preset.id))
+    }
+
+    fun deletePresets(presetIds: Set<String>) {
+        if (presetIds.isEmpty()) return
+        _presets.value
+            .filter { it.id in presetIds }
+            .forEach { stopPreset(it, persist = false) }
+        val updated = _presets.value.filterNot { it.id in presetIds }
         _presets.value = updated
         presetRepository.savePresets(updated)
         persistActiveTimers()
