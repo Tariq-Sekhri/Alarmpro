@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Alarmpro logo">
+  <defs>
+    <linearGradient id="ringGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#45D9F8"/>
+      <stop offset="100%" stop-color="#2A9DB8"/>
+    </linearGradient>
+    <linearGradient id="bellGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFB547"/>
+      <stop offset="100%" stop-color="#FF8A1F"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#06080C"/>
+  <circle cx="256" cy="268" r="168" fill="#0E1219" stroke="url(#ringGlow)" stroke-width="18"/>
+  <circle cx="256" cy="268" r="132" fill="none" stroke="#151C27" stroke-width="4"/>
+  <g fill="url(#bellGlow)">
+    <path d="M176 132c18-34 48-52 80-52s62 18 80 52l-18 10c-14-24-36-36-62-36s-48 12-62 36z"/>
+    <circle cx="176" cy="142" r="16"/>
+    <circle cx="336" cy="142" r="16"/>
+  </g>
+  <circle cx="256" cy="268" r="10" fill="#45D9F8"/>
+  <line x1="256" y1="268" x2="256" y2="176" stroke="#E8EDF5" stroke-width="12" stroke-linecap="round"/>
+  <line x1="256" y1="268" x2="318" y2="300" stroke="#FFB547" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="256" cy="152" r="8" fill="#45D9F8"/>
+  <circle cx="352" cy="268" r="8" fill="#45D9F8"/>
+  <circle cx="256" cy="384" r="8" fill="#45D9F8"/>
+  <circle cx="160" cy="268" r="8" fill="#45D9F8"/>
+  <text x="256" y="468" text-anchor="middle" fill="#8B97A8" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="34" font-weight="600" letter-spacing="6">ALARMPRO</text>
+</svg>

@@ -1,4 +1,21 @@
-# Alarmpro
+<p align="center">
+  <img src="docs/logo.svg" alt="Alarmpro logo" width="160"/>
+</p>
+
+<h1 align="center">Alarmpro</h1>
+
+<p align="center">
+  Open-source Android alarm clock app · <code>ca.sekhrit.alarmpro</code>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Tariq-Sekhri/Alarmpro/actions/workflows/android-build.yml">
+    <img src="https://github.com/Tariq-Sekhri/Alarmpro/actions/workflows/android-build.yml/badge.svg" alt="Android Build"/>
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"/>
+  </a>
+</p>
 
 Alarmpro is an open-source Android alarm clock app built with Kotlin and Jetpack Compose. It includes alarms, timers, a stopwatch, and a world clock, with grouping, bulk actions, and a full-screen ringing UI.
 
@@ -38,6 +55,10 @@ Alarmpro is an open-source Android alarm clock app built with Kotlin and Jetpack
 - Android Studio Ladybug or newer recommended
 - JDK 11+
 
+## Package
+
+`ca.sekhrit.alarmpro`
+
 ## Build
 
 Clone the repository and run:
@@ -57,6 +78,8 @@ On Windows:
 ```bat
 gradlew.bat :app:installDebug
 ```
+
+CI builds run on every push to `main` via GitHub Actions. Download APK artifacts from the [Actions](https://github.com/Tariq-Sekhri/Alarmpro/actions) tab after a successful build.
 
 ## Tech stack
 
