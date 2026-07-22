@@ -299,7 +299,7 @@ private fun TimerPresetCard(
             .clip(shape)
             .background(if (isRunning) CardSurface else ElevatedSurface.copy(alpha = 0.75f))
             .combinedClickable(
-                onClick = { if (selectionMode) onToggleSelection() },
+                onClick = { if (selectionMode) onToggleSelection() else onEdit() },
                 onLongClick = {
                     if (selectionMode) onToggleSelection() else onEnterSelection()
                 }
