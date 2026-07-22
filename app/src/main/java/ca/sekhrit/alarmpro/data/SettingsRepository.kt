@@ -11,7 +11,10 @@ class SettingsRepository(context: Context) {
             defaultSnoozeMinutes = prefs.getInt(KEY_DEFAULT_SNOOZE_MINUTES, prefs.getInt(KEY_LEGACY_SNOOZE, 10)),
             defaultVibrate = prefs.getBoolean(KEY_DEFAULT_VIBRATE, prefs.getBoolean(KEY_LEGACY_VIBRATION, true)),
             defaultReadLabelAloud = prefs.getBoolean(KEY_DEFAULT_READ_ALOUD, false),
-            use24HourFormat = prefs.getBoolean(KEY_24H, false)
+            defaultAlarmSoundUri = prefs.getString(KEY_DEFAULT_ALARM_SOUND, null)?.ifBlank { null },
+            use24HourFormat = prefs.getBoolean(KEY_24H, false),
+            timerSpeechFormat = TimerSpeechFormat.fromStored(prefs.getString(KEY_TIMER_SPEECH, null)),
+            upcomingAlarmLeadMinutes = prefs.getInt(KEY_UPCOMING_ALARM_LEAD, 60)
         )
     }
 
@@ -21,7 +24,10 @@ class SettingsRepository(context: Context) {
             .putInt(KEY_DEFAULT_SNOOZE_MINUTES, settings.defaultSnoozeMinutes)
             .putBoolean(KEY_DEFAULT_VIBRATE, settings.defaultVibrate)
             .putBoolean(KEY_DEFAULT_READ_ALOUD, settings.defaultReadLabelAloud)
+            .putString(KEY_DEFAULT_ALARM_SOUND, settings.defaultAlarmSoundUri.orEmpty())
             .putBoolean(KEY_24H, settings.use24HourFormat)
+            .putString(KEY_TIMER_SPEECH, settings.timerSpeechFormat.name)
+            .putInt(KEY_UPCOMING_ALARM_LEAD, settings.upcomingAlarmLeadMinutes)
             .apply()
     }
 
@@ -31,7 +37,10 @@ class SettingsRepository(context: Context) {
         private const val KEY_DEFAULT_SNOOZE_MINUTES = "default_snooze_minutes"
         private const val KEY_DEFAULT_VIBRATE = "default_vibrate"
         private const val KEY_DEFAULT_READ_ALOUD = "default_read_aloud"
+        private const val KEY_DEFAULT_ALARM_SOUND = "default_alarm_sound"
         private const val KEY_24H = "use_24h"
+        private const val KEY_TIMER_SPEECH = "timer_speech_format"
+        private const val KEY_UPCOMING_ALARM_LEAD = "upcoming_alarm_lead_minutes"
         private const val KEY_LEGACY_SNOOZE = "snooze_minutes"
         private const val KEY_LEGACY_VIBRATION = "vibration_enabled"
     }

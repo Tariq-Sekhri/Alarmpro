@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import ca.sekhrit.alarmpro.data.Alarm
+import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.util.RepeatCalculator
 
 class AlarmScheduler(private val context: Context) {
@@ -16,16 +17,19 @@ class AlarmScheduler(private val context: Context) {
             return
         }
 
+        val settings = SettingsRepository(context).load()
         val triggerAt = RepeatCalculator.nextTriggerMillis(alarm)
         scheduleInternal(
             requestCode = alarm.id.hashCode(),
             alarm = alarm,
             triggerAt = triggerAt
         )
+        scheduleUpcoming(alarm, triggerAt, settings)
     }
 
     fun scheduleSnooze(alarm: Alarm, snoozeMinutes: Int) {
         val triggerAt = System.currentTimeMillis() + snoozeMinutes * 60_000L
+        cancelUpcoming(alarm)
         scheduleInternal(
             requestCode = alarm.id.hashCode() + SNOOZE_OFFSET,
             alarm = alarm,
@@ -37,6 +41,49 @@ class AlarmScheduler(private val context: Context) {
     fun cancel(alarm: Alarm) {
         cancelRequestCode(alarm.id.hashCode())
         cancelRequestCode(alarm.id.hashCode() + SNOOZE_OFFSET)
+        cancelUpcoming(alarm)
+    }
+
+    private fun scheduleUpcoming(
+        alarm: Alarm,
+        triggerAt: Long,
+        settings: ca.sekhrit.alarmpro.data.AppSettings
+    ) {
+        val leadMinutes = settings.upcomingAlarmLeadMinutes
+        if (leadMinutes <= 0) {
+            cancelUpcoming(alarm)
+            return
+        }
+
+        val upcomingAt = triggerAt - leadMinutes * 60_000L
+        if (upcomingAt <= System.currentTimeMillis()) {
+            cancelUpcoming(alarm)
+            return
+        }
+
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = ACTION_UPCOMING_ALARM
+            putExtra(EXTRA_ALARM_ID, alarm.id)
+            putExtra(EXTRA_HOUR, alarm.time.hour)
+            putExtra(EXTRA_MINUTE, alarm.time.minute)
+            putExtra(EXTRA_LABEL, alarm.label)
+            putExtra(EXTRA_LEAD_MINUTES, leadMinutes)
+            putExtra(EXTRA_USE_24H, settings.use24HourFormat)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            alarm.id.hashCode() + UPCOMING_OFFSET,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        setExact(upcomingAt, pendingIntent)
+    }
+
+    private fun cancelUpcoming(alarm: Alarm) {
+        cancelRequestCode(alarm.id.hashCode() + UPCOMING_OFFSET)
+        NotificationHelper.cancelUpcomingNotification(context, alarm.id)
     }
 
     private fun scheduleInternal(
@@ -85,9 +132,7 @@ class AlarmScheduler(private val context: Context) {
     }
 
     private fun cancelRequestCode(requestCode: Int) {
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            action = ACTION_ALARM
-        }
+        val intent = Intent(context, AlarmReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -99,6 +144,7 @@ class AlarmScheduler(private val context: Context) {
 
     companion object {
         const val ACTION_ALARM = "ca.sekhrit.alarmpro.ALARM"
+        const val ACTION_UPCOMING_ALARM = "ca.sekhrit.alarmpro.UPCOMING_ALARM"
         const val EXTRA_ALARM_ID = "ALARM_ID"
         const val EXTRA_HOUR = "HOUR"
         const val EXTRA_MINUTE = "MINUTE"
@@ -106,6 +152,9 @@ class AlarmScheduler(private val context: Context) {
         const val EXTRA_VIBRATE = "VIBRATE"
         const val EXTRA_READ_LABEL_ALOUD = "READ_LABEL_ALOUD"
         const val EXTRA_IS_SNOOZE = "IS_SNOOZE"
+        const val EXTRA_LEAD_MINUTES = "LEAD_MINUTES"
+        const val EXTRA_USE_24H = "USE_24H"
         private const val SNOOZE_OFFSET = 100_000
+        private const val UPCOMING_OFFSET = 200_000
     }
 }

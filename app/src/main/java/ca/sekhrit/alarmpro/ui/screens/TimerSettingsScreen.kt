@@ -16,14 +16,46 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import ca.sekhrit.alarmpro.data.TimerSpeechFormat
 import ca.sekhrit.alarmpro.ui.components.SettingsCategoryHeader
+import ca.sekhrit.alarmpro.ui.components.SettingsOptionDialog
 import ca.sekhrit.alarmpro.ui.components.SettingsSwitchRow
 import ca.sekhrit.alarmpro.ui.components.SettingsValueRow
+import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TimerSettingsScreen(onBack: () -> Unit) {
+fun TimerSettingsScreen(
+    onBack: () -> Unit,
+    viewModel: AlarmViewModel = viewModel()
+) {
+    val settings by viewModel.settings.collectAsState()
+    var showSpeechDialog by remember { mutableStateOf(false) }
+    val speechOptions = remember { TimerSpeechFormat.entries.map { it.label } }
+    val speechSelectedIndex = TimerSpeechFormat.entries.indexOf(settings.timerSpeechFormat)
+
+    if (showSpeechDialog) {
+        SettingsOptionDialog(
+            title = "Timer speech format",
+            options = speechOptions,
+            selectedIndex = speechSelectedIndex,
+            onDismiss = { showSpeechDialog = false },
+            onSelect = { index ->
+                viewModel.updateSettings(
+                    settings.copy(timerSpeechFormat = TimerSpeechFormat.entries[index])
+                )
+                showSpeechDialog = false
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -49,7 +81,8 @@ fun TimerSettingsScreen(onBack: () -> Unit) {
             SettingsCategoryHeader("Timer")
             SettingsValueRow(
                 title = "Timer speech format",
-                value = "Time and label"
+                value = settings.timerSpeechFormat.label,
+                onClick = { showSpeechDialog = true }
             )
             SettingsSwitchRow(
                 title = "Gradually increase volume",

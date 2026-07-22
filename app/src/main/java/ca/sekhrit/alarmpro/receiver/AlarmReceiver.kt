@@ -11,12 +11,17 @@ import ca.sekhrit.alarmpro.data.isSnoozeAllowed
 import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
 import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.domain.AlarmActions
+import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.util.AlarmGrouping
+import ca.sekhrit.alarmpro.util.AlarmSoundUtils
+import ca.sekhrit.alarmpro.util.TimeUtils
+import java.time.LocalTime
 
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             AlarmScheduler.ACTION_ALARM -> handleAlarm(context, intent)
+            AlarmScheduler.ACTION_UPCOMING_ALARM -> handleUpcomingAlarm(context, intent)
             TimerScheduler.ACTION_TIMER -> handleTimer(context, intent)
             ACTION_DISMISS_ALARM -> {
                 val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
@@ -27,9 +32,10 @@ class AlarmReceiver : BroadcastReceiver() {
                 AlarmActions.snooze(context, alarmId)
             }
             ACTION_DISMISS_TIMER -> {
-                TimerRepository(context).clear()
-                TimerScheduler(context).cancel()
-                NotificationHelper.cancelTimerNotification(context)
+                val timerId = intent.getStringExtra(TimerScheduler.EXTRA_TIMER_ID) ?: return
+                TimerRepository(context).removeTimer(timerId)
+                TimerScheduler(context).cancel(timerId)
+                NotificationHelper.cancelTimerNotification(context, timerId)
             }
         }
     }
@@ -58,6 +64,9 @@ class AlarmReceiver : BroadcastReceiver() {
         } ?: label
         val snoozeAllowed = alarm?.isSnoozeAllowed(settings) ?: settings.defaultSnoozeEnabled
         val snoozeMinutes = alarm?.resolveSnoozeMinutes(settings) ?: settings.defaultSnoozeMinutes
+        val soundUri = AlarmSoundUtils.resolvePlaybackUri(context, alarm, settings).toString()
+
+        NotificationHelper.cancelUpcomingNotification(context, alarmId)
 
         NotificationHelper.showAlarmNotification(
             context,
@@ -81,19 +90,43 @@ class AlarmReceiver : BroadcastReceiver() {
             putExtra(AlarmRingActivity.EXTRA_READ_LABEL_ALOUD, readLabelAloud)
             putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
             putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
+            putExtra(AlarmRingActivity.EXTRA_SOUND_URI, soundUri)
         }
         context.startActivity(ringIntent)
     }
 
+    private fun handleUpcomingAlarm(context: Context, intent: Intent) {
+        val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
+        val hour = intent.getIntExtra(AlarmScheduler.EXTRA_HOUR, 0)
+        val minute = intent.getIntExtra(AlarmScheduler.EXTRA_MINUTE, 0)
+        val label = intent.getStringExtra(AlarmScheduler.EXTRA_LABEL).orEmpty()
+        val leadMinutes = intent.getIntExtra(AlarmScheduler.EXTRA_LEAD_MINUTES, 60)
+        val use24Hour = intent.getBooleanExtra(AlarmScheduler.EXTRA_USE_24H, false)
+        val timeText = TimeUtils.formatTime(LocalTime.of(hour, minute), use24Hour)
+        val leadText = upcomingAlarmLeadLabel(leadMinutes)
+
+        NotificationHelper.showUpcomingAlarmNotification(
+            context = context,
+            alarmId = alarmId,
+            label = label,
+            timeText = timeText,
+            leadText = leadText
+        )
+    }
+
     private fun handleTimer(context: Context, intent: Intent) {
+        val timerId = intent.getStringExtra(TimerScheduler.EXTRA_TIMER_ID) ?: return
         val label = intent.getStringExtra(TimerScheduler.EXTRA_TIMER_LABEL).orEmpty()
-        TimerRepository(context).clear()
-        NotificationHelper.showTimerNotification(context, label)
+        val totalSeconds = intent.getIntExtra(TimerScheduler.EXTRA_TIMER_TOTAL_SECONDS, 0)
+        TimerRepository(context).removeTimer(timerId)
+        NotificationHelper.showTimerNotification(context, timerId, label)
 
         val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_TIMER)
+            putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
             putExtra(AlarmRingActivity.EXTRA_LABEL, label)
+            putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
         }
         context.startActivity(ringIntent)
     }

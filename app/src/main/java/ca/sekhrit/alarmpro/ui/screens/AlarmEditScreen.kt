@@ -1,5 +1,6 @@
 package ca.sekhrit.alarmpro.ui.screens
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,16 +44,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.RepeatSchedule
 import ca.sekhrit.alarmpro.data.RepeatType
+import ca.sekhrit.alarmpro.ui.components.AlarmSoundPickerRow
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.ui.theme.WarmAmber
 import ca.sekhrit.alarmpro.util.AlarmGrouping
+import ca.sekhrit.alarmpro.util.AlarmSoundUtils
 import ca.sekhrit.alarmpro.util.RepeatCalculator
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
@@ -69,6 +73,7 @@ fun AlarmEditScreen(
     val settings by viewModel.settings.collectAsState()
     val alarms by viewModel.alarms.collectAsState()
     val groups by viewModel.groups.collectAsState()
+    val context = LocalContext.current
     val existing = alarmId?.let { id -> alarms.find { it.id == id } }
     val initialTime = existing?.time ?: LocalTime.now().plusMinutes(1).withSecond(0).withNano(0)
 
@@ -93,6 +98,8 @@ fun AlarmEditScreen(
     var selectedGroupId by remember(existing?.id) { mutableStateOf(existing?.groupId) }
     var createNewGroup by remember(existing?.id) { mutableStateOf(false) }
     var newGroupName by remember(existing?.id) { mutableStateOf("") }
+    var useDefaultSound by remember(existing?.id) { mutableStateOf(existing?.soundUri == null) }
+    var customSoundUri by remember(existing?.id) { mutableStateOf(existing?.soundUri) }
 
     val snoozeLengthOptions = listOf(5, 10, 15, 20, 30, 45, 60)
     val anchorEpochDay = existing?.repeat?.anchorEpochDay ?: existing?.createdEpochDay ?: LocalDate.now().toEpochDay()
@@ -143,6 +150,7 @@ fun AlarmEditScreen(
             createNewGroup -> null
             else -> selectedGroupId
         }
+        val resolvedSoundUri = if (useDefaultSound) null else customSoundUri
         if (existing == null) {
             viewModel.addAlarm(
                 selectedTime,
@@ -153,7 +161,8 @@ fun AlarmEditScreen(
                 snoozeEnabled,
                 snoozeMinutes,
                 isEnabled = isActive,
-                groupId = resolvedGroupId
+                groupId = resolvedGroupId,
+                soundUri = resolvedSoundUri
             )
         } else {
             viewModel.updateAlarm(
@@ -166,7 +175,8 @@ fun AlarmEditScreen(
                     readLabelAloud = readLabelAloud,
                     snoozeEnabled = snoozeEnabled,
                     snoozeMinutes = snoozeMinutes,
-                    groupId = resolvedGroupId
+                    groupId = resolvedGroupId,
+                    soundUri = resolvedSoundUri
                 )
             )
         }
@@ -266,6 +276,41 @@ fun AlarmEditScreen(
                         text = "Default name: $preview",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Text("Alarm sound", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = useDefaultSound,
+                        onClick = { useDefaultSound = true },
+                        label = { Text("Default") }
+                    )
+                    FilterChip(
+                        selected = !useDefaultSound,
+                        onClick = { useDefaultSound = false },
+                        label = { Text("Custom") }
+                    )
+                }
+                if (useDefaultSound) {
+                    Text(
+                        text = AlarmSoundUtils.displayTitle(context, null, settings),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    AlarmSoundPickerRow(
+                        title = "Custom sound",
+                        subtitle = AlarmSoundUtils.getTitle(
+                            context,
+                            customSoundUri?.let { Uri.parse(it) }
+                        ),
+                        pickerUri = customSoundUri?.let { Uri.parse(it) }
+                            ?: AlarmSoundUtils.resolvePickerUri(existing, settings),
+                        onSoundPicked = { uri ->
+                            customSoundUri = AlarmSoundUtils.uriToStorage(uri)
+                            useDefaultSound = false
+                        }
                     )
                 }
 

@@ -33,14 +33,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ca.sekhrit.alarmpro.data.AlarmRepository
 import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.data.TimerRepository
+import ca.sekhrit.alarmpro.data.timerSpeechText
 import ca.sekhrit.alarmpro.domain.AlarmActions
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
 import ca.sekhrit.alarmpro.ui.theme.AlarmProTheme
+import ca.sekhrit.alarmpro.util.AlarmSoundUtils
 import ca.sekhrit.alarmpro.util.AlarmTimeParts
 import ca.sekhrit.alarmpro.util.TimeUtils
+import android.net.Uri
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -66,6 +70,8 @@ class AlarmRingActivity : ComponentActivity() {
 
         val ringType = intent.getStringExtra(EXTRA_RING_TYPE) ?: TYPE_ALARM
         val alarmId = intent.getStringExtra(EXTRA_ALARM_ID).orEmpty()
+        val timerId = intent.getStringExtra(EXTRA_TIMER_ID).orEmpty()
+        val timerTotalSeconds = intent.getIntExtra(EXTRA_TIMER_TOTAL_SECONDS, 0)
         val hour = intent.getIntExtra(EXTRA_HOUR, 7)
         val minute = intent.getIntExtra(EXTRA_MINUTE, 0)
         val label = intent.getStringExtra(EXTRA_LABEL).orEmpty()
@@ -73,13 +79,27 @@ class AlarmRingActivity : ComponentActivity() {
         val readLabelAloud = intent.getBooleanExtra(EXTRA_READ_LABEL_ALOUD, false)
         val snoozeAllowed = intent.getBooleanExtra(EXTRA_SNOOZE_ALLOWED, true)
         val settings = SettingsRepository(this).load()
+        val playbackUri = when (ringType) {
+            TYPE_ALARM -> {
+                val alarm = AlarmRepository(this).loadAlarms().find { it.id == alarmId }
+                AlarmSoundUtils.resolvePlaybackUri(this, alarm, settings)
+            }
+            TYPE_PREVIEW -> {
+                intent.getStringExtra(EXTRA_SOUND_URI)?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
+                    ?: AlarmSoundUtils.resolvePlaybackUri(this, null, settings)
+            }
+            else -> AlarmSoundUtils.systemDefaultUri()
+        }
 
-        startAlarmSound()
+        startAlarmSound(playbackUri)
         if ((vibrate && ringType != TYPE_PREVIEW) || ringType == TYPE_TIMER) {
             startVibration()
         }
         if (readLabelAloud && label.isNotBlank() && ringType == TYPE_ALARM) {
-            speakLabel(label)
+            speakText(label)
+        }
+        if (ringType == TYPE_TIMER) {
+            timerSpeechText(settings.timerSpeechFormat, label, timerTotalSeconds)?.let { speakText(it) }
         }
 
         val headline = when (ringType) {
@@ -116,9 +136,11 @@ class AlarmRingActivity : ComponentActivity() {
                             TYPE_ALARM -> AlarmActions.dismiss(this@AlarmRingActivity, alarmId)
                             TYPE_PREVIEW -> Unit
                             else -> {
-                                TimerRepository(this@AlarmRingActivity).clear()
-                                TimerScheduler(this@AlarmRingActivity).cancel()
-                                NotificationHelper.cancelTimerNotification(this@AlarmRingActivity)
+                                if (timerId.isNotBlank()) {
+                                    TimerRepository(this@AlarmRingActivity).removeTimer(timerId)
+                                    TimerScheduler(this@AlarmRingActivity).cancel(timerId)
+                                    NotificationHelper.cancelTimerNotification(this@AlarmRingActivity, timerId)
+                                }
                             }
                         }
                         finish()
@@ -128,18 +150,16 @@ class AlarmRingActivity : ComponentActivity() {
         }
     }
 
-    private fun speakLabel(label: String) {
+    private fun speakText(text: String) {
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 textToSpeech?.language = Locale.getDefault()
-                textToSpeech?.speak(label, TextToSpeech.QUEUE_FLUSH, null, "alarm_label")
+                textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "alarmpro_speech")
             }
         }
     }
 
-    private fun startAlarmSound() {
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+    private fun startAlarmSound(uri: Uri) {
         mediaPlayer = MediaPlayer().apply {
             setDataSource(this@AlarmRingActivity, uri)
             setAudioAttributes(
@@ -196,6 +216,9 @@ class AlarmRingActivity : ComponentActivity() {
         const val EXTRA_READ_LABEL_ALOUD = "READ_LABEL_ALOUD"
         const val EXTRA_SNOOZE_ALLOWED = "SNOOZE_ALLOWED"
         const val EXTRA_SNOOZE_MINUTES = "SNOOZE_MINUTES"
+        const val EXTRA_SOUND_URI = "SOUND_URI"
+        const val EXTRA_TIMER_ID = "TIMER_ID"
+        const val EXTRA_TIMER_TOTAL_SECONDS = "TIMER_TOTAL_SECONDS"
         const val TYPE_ALARM = "alarm"
         const val TYPE_TIMER = "timer"
         const val TYPE_PREVIEW = "preview"

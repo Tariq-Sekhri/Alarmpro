@@ -14,6 +14,7 @@ data class Alarm(
     val snoozeEnabled: Boolean = true,
     val snoozeMinutes: Int? = null,
     val skipUntilEpochDay: Long? = null,
+    val soundUri: String? = null,
     val groupId: String? = null,
     val createdEpochDay: Long = java.time.LocalDate.now().toEpochDay()
 )

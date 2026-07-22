@@ -162,7 +162,9 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
         isEnabled: Boolean = true,
 
-        groupId: String? = null
+        groupId: String? = null,
+
+        soundUri: String? = null
 
     ) {
 
@@ -184,7 +186,9 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
             isEnabled = isEnabled,
 
-            groupId = groupId
+            groupId = groupId,
+
+            soundUri = soundUri
 
         )
 
@@ -334,6 +338,16 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
         persistGroups(_groups.value.filter { it.id != groupId })
 
+        persistAlarms(_alarms.value.filter { it.groupId != groupId })
+
+    }
+
+
+
+    fun ungroupGroup(groupId: String) {
+
+        persistGroups(_groups.value.filter { it.id != groupId })
+
         persistAlarms(_alarms.value.map { if (it.groupId == groupId) it.copy(groupId = null) else it })
 
     }
@@ -471,6 +485,20 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
         updated.filter { it.id in alarmIds && it.isEnabled }.forEach { reschedule(it) }
     }
 
+    fun assignAlarmsToGroup(alarmIds: Set<String>, groupId: String) {
+        if (alarmIds.isEmpty()) return
+        persistGroups(
+            _groups.value.map {
+                if (it.id == groupId) it.copy(isCollapsed = false) else it
+            }
+        )
+        val updated = _alarms.value.map { alarm ->
+            if (alarm.id in alarmIds) alarm.copy(groupId = groupId) else alarm
+        }
+        persistAlarms(updated)
+        updated.filter { it.id in alarmIds && it.isEnabled }.forEach { reschedule(it) }
+    }
+
     fun groupAlarms(alarmIds: Set<String>, groupLabel: String): AlarmGroup {
         val group = createGroup(groupLabel)
         persistGroups(
@@ -487,10 +515,25 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateSettings(settings: AppSettings) {
-
+        val upcomingChanged = _settings.value.upcomingAlarmLeadMinutes != settings.upcomingAlarmLeadMinutes
         _settings.value = settings
-
         settingsRepository.save(settings)
+        if (upcomingChanged) {
+            _alarms.value.filter { it.isEnabled }.forEach { reschedule(it) }
+        }
+    }
+
+
+
+    fun updateDefaultAlarmSound(uri: String?, applyToAllAlarms: Boolean) {
+
+        updateSettings(_settings.value.copy(defaultAlarmSoundUri = uri))
+
+        if (applyToAllAlarms) {
+
+            persistAlarms(_alarms.value.map { it.copy(soundUri = null) })
+
+        }
 
     }
 

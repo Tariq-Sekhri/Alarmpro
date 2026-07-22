@@ -19,9 +19,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ca.sekhrit.alarmpro.data.TimerSpeechFormat
+import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.ui.components.SettingsCategoryHeader
+import ca.sekhrit.alarmpro.ui.components.SettingsOptionDialog
 import ca.sekhrit.alarmpro.ui.components.SettingsSwitchRow
 import ca.sekhrit.alarmpro.ui.components.SettingsValueRow
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
@@ -33,6 +39,46 @@ fun GeneralSettingsScreen(
     viewModel: AlarmViewModel = viewModel()
 ) {
     val settings by viewModel.settings.collectAsState()
+    var showSpeechDialog by remember { mutableStateOf(false) }
+    var showUpcomingDialog by remember { mutableStateOf(false) }
+
+    val speechOptions = remember { TimerSpeechFormat.entries.map { it.label } }
+    val speechSelectedIndex = TimerSpeechFormat.entries.indexOf(settings.timerSpeechFormat)
+
+    val upcomingLeadOptions = remember { listOf(0, 15, 30, 60) }
+    val upcomingOptionLabels = remember { upcomingLeadOptions.map { upcomingAlarmLeadLabel(it) } }
+    val upcomingSelectedIndex = upcomingLeadOptions.indexOf(settings.upcomingAlarmLeadMinutes)
+        .takeIf { it >= 0 } ?: 0
+
+    if (showSpeechDialog) {
+        SettingsOptionDialog(
+            title = "Timer speech format",
+            options = speechOptions,
+            selectedIndex = speechSelectedIndex,
+            onDismiss = { showSpeechDialog = false },
+            onSelect = { index ->
+                viewModel.updateSettings(
+                    settings.copy(timerSpeechFormat = TimerSpeechFormat.entries[index])
+                )
+                showSpeechDialog = false
+            }
+        )
+    }
+
+    if (showUpcomingDialog) {
+        SettingsOptionDialog(
+            title = "Upcoming alarm notification",
+            options = upcomingOptionLabels,
+            selectedIndex = upcomingSelectedIndex,
+            onDismiss = { showUpcomingDialog = false },
+            onSelect = { index ->
+                viewModel.updateSettings(
+                    settings.copy(upcomingAlarmLeadMinutes = upcomingLeadOptions[index])
+                )
+                showUpcomingDialog = false
+            }
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -56,20 +102,6 @@ fun GeneralSettingsScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
-            SettingsCategoryHeader("Look and Feel")
-            SettingsValueRow(
-                title = "Theme",
-                value = "Dark"
-            )
-            SettingsValueRow(
-                title = "Clock widget font-size",
-                value = "Medium"
-            )
-            SettingsValueRow(
-                title = "Next alarm widget font-size",
-                value = "Medium"
-            )
-
             SettingsCategoryHeader("Display")
             SettingsSwitchRow(
                 title = "24-hour format",
@@ -79,34 +111,19 @@ fun GeneralSettingsScreen(
                     viewModel.updateSettings(settings.copy(use24HourFormat = it))
                 }
             )
-            SettingsValueRow(
-                title = "Time format",
-                value = if (settings.use24HourFormat) "24-hour" else "12-hour"
-            )
-            SettingsValueRow(
-                title = "Time picker style",
-                value = "Analog clock"
-            )
 
             SettingsCategoryHeader("Speech Settings")
             SettingsValueRow(
                 title = "Timer speech format",
-                value = "Time and label"
-            )
-            SettingsValueRow(
-                title = "Speech rate",
-                value = "Normal"
+                value = settings.timerSpeechFormat.label,
+                onClick = { showSpeechDialog = true }
             )
 
             SettingsCategoryHeader("Misc Settings")
             SettingsValueRow(
                 title = "Upcoming alarm notification",
-                value = "Show 1 hour before alarm"
-            )
-            SettingsSwitchRow(
-                title = "Alarm reminder notification",
-                checked = false,
-                onCheckedChange = {}
+                value = upcomingAlarmLeadLabel(settings.upcomingAlarmLeadMinutes),
+                onClick = { showUpcomingDialog = true }
             )
         }
     }

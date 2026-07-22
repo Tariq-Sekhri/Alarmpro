@@ -11,14 +11,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TimerOff
 import androidx.compose.material3.AlertDialog
@@ -26,12 +31,13 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -49,7 +55,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.TimerPreset
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
@@ -57,7 +66,6 @@ import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.ui.theme.ElevatedSurface
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,26 +73,19 @@ fun TimerScreen(
     onOpenSettings: () -> Unit,
     viewModel: TimerViewModel = viewModel()
 ) {
-    val state by viewModel.state.collectAsState()
+    val activeTimers by viewModel.activeTimers.collectAsState()
     val presets by viewModel.presets.collectAsState()
-    val activePresetId by viewModel.activePresetId.collectAsState()
-    val finished by viewModel.finished.collectAsState()
-    val finishedLabel by viewModel.finishedLabel.collectAsState()
+    val finishedLabels by viewModel.finishedLabels.collectAsState()
+    val clockMillis by viewModel.clockMillis.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var editPreset by remember { mutableStateOf<TimerPreset?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.syncFromStorage()
     }
 
-    LaunchedEffect(state.isRunning) {
-        while (state.isRunning) {
-            delay(250)
-            viewModel.tick()
-        }
-    }
-
-    if (finished) {
+    finishedLabels.firstOrNull()?.let { finishedLabel ->
         AlertDialog(
             onDismissRequest = { viewModel.acknowledgeFinished() },
             title = { Text("Timer finished") },
@@ -98,17 +99,37 @@ fun TimerScreen(
     }
 
     if (showAddDialog) {
-        AddTimerPresetDialog(
+        TimerPresetDialog(
             onDismiss = { showAddDialog = false },
-            onAdd = { seconds ->
-                viewModel.addPreset(seconds)
+            onSettings = {
+                showAddDialog = false
+                onOpenSettings()
+            },
+            onConfirm = { seconds, label ->
+                viewModel.addPreset(seconds, label)
                 showAddDialog = false
             }
         )
     }
 
-    val nextHeader = viewModel.nextTimerHeader
-    val isActive = state.totalSeconds > 0 && state.remainingSeconds > 0
+    editPreset?.let { preset ->
+        TimerPresetDialog(
+            initialTotalSeconds = preset.totalSeconds,
+            initialLabel = preset.label,
+            onDismiss = { editPreset = null },
+            onSettings = {
+                editPreset = null
+                onOpenSettings()
+            },
+            onConfirm = { seconds, label ->
+                viewModel.updatePreset(preset, seconds, label)
+                editPreset = null
+            }
+        )
+    }
+
+    val isActive = activeTimers.values.any { it.isActive(clockMillis) }
+    val nextHeader = remember(clockMillis, activeTimers) { viewModel.nextTimerHeader }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -170,24 +191,35 @@ fun TimerScreen(
                     Text(
                         text = nextHeader ?: "No Timers Set",
                         style = MaterialTheme.typography.titleMedium,
-                        color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isActive) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
             items(presets, key = { it.id }) { preset ->
-                val isRunningPreset = activePresetId == preset.id && state.totalSeconds > 0
+                val timer = activeTimers[preset.id]
+                val isRunningPreset = timer != null && timer.isActive(clockMillis)
+                val remainingSeconds = timer
+                    ?.takeIf { it.isActive(clockMillis) }
+                    ?.liveRemainingSeconds(clockMillis)
+                    ?: preset.totalSeconds
                 TimerPresetCard(
                     preset = preset,
                     isRunning = isRunningPreset,
-                    progress = if (isRunningPreset && state.totalSeconds > 0) {
-                        1f - (state.remainingSeconds.toFloat() / state.totalSeconds.toFloat())
+                    displaySeconds = remainingSeconds,
+                    progress = if (isRunningPreset && timer != null && timer.totalSeconds > 0) {
+                        1f - (remainingSeconds.toFloat() / timer.totalSeconds.toFloat())
                     } else {
                         0f
                     },
                     onRestart = { viewModel.restartPreset(preset) },
                     onToggle = { enabled -> viewModel.togglePreset(preset, enabled) },
+                    onEdit = { editPreset = preset },
                     onDelete = { viewModel.deletePreset(preset) }
                 )
             }
@@ -199,9 +231,11 @@ fun TimerScreen(
 private fun TimerPresetCard(
     preset: TimerPreset,
     isRunning: Boolean,
+    displaySeconds: Int,
     progress: Float,
     onRestart: () -> Unit,
     onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val shape = RoundedCornerShape(16.dp)
@@ -228,12 +262,26 @@ private fun TimerPresetCard(
                 )
             }
 
-            Text(
-                text = TimeUtils.formatDuration(preset.totalSeconds.toLong()),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                if (preset.label.isNotBlank()) {
+                    Text(
+                        text = preset.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = TimeUtils.formatDuration(displaySeconds.toLong()),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = TimeUtils.formatDuration(displaySeconds.toLong()),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
 
             Switch(
                 checked = isRunning,
@@ -249,6 +297,14 @@ private fun TimerPresetCard(
                     Icon(Icons.Default.MoreVert, contentDescription = "Timer options")
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        onClick = {
+                            showMenu = false
+                            onEdit()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                    )
                     DropdownMenuItem(
                         text = { Text("Delete") },
                         onClick = {
@@ -276,71 +332,163 @@ private fun TimerPresetCard(
 }
 
 @Composable
-private fun AddTimerPresetDialog(
+private fun TimerPresetDialog(
+    initialTotalSeconds: Int = 5 * 60,
+    initialLabel: String = "",
     onDismiss: () -> Unit,
-    onAdd: (Int) -> Unit
+    onSettings: () -> Unit,
+    onConfirm: (Int, String) -> Unit
 ) {
-    var hours by remember { mutableIntStateOf(0) }
-    var minutes by remember { mutableIntStateOf(5) }
-    var seconds by remember { mutableIntStateOf(0) }
+    var hours by remember(initialTotalSeconds) { mutableIntStateOf(initialTotalSeconds / 3600) }
+    var minutes by remember(initialTotalSeconds) {
+        mutableIntStateOf((initialTotalSeconds % 3600) / 60)
+    }
+    var seconds by remember(initialTotalSeconds) { mutableIntStateOf(initialTotalSeconds % 60) }
+    var label by remember(initialLabel) { mutableStateOf(initialLabel) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add timer") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            color = CardSurface,
+            tonalElevation = 8.dp
+        ) {
+            Column {
+                Text(
+                    text = "Timer Duration:",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                )
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Hours")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { hours = (hours + 23) % 24 }) { Text("-") }
-                        Text("$hours")
-                        OutlinedButton(onClick = { hours = (hours + 1) % 24 }) { Text("+") }
-                    }
+                    DurationStepper(
+                        label = "hour",
+                        value = hours,
+                        onDecrement = { hours = (hours + 99) % 100 },
+                        onIncrement = { hours = (hours + 1) % 100 }
+                    )
+                    Text(
+                        text = ":",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    DurationStepper(
+                        label = "min",
+                        value = minutes,
+                        onDecrement = { minutes = (minutes + 59) % 60 },
+                        onIncrement = { minutes = (minutes + 1) % 60 }
+                    )
+                    Text(
+                        text = ":",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    DurationStepper(
+                        label = "sec",
+                        value = seconds,
+                        onDecrement = { seconds = (seconds + 59) % 60 },
+                        onIncrement = { seconds = (seconds + 1) % 60 }
+                    )
                 }
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Minutes")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { minutes = (minutes + 59) % 60 }) { Text("-") }
-                        Text("$minutes")
-                        OutlinedButton(onClick = { minutes = (minutes + 1) % 60 }) { Text("+") }
-                    }
+                    Text(
+                        text = "Label:",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    BasicTextField(
+                        value = label,
+                        onValueChange = { label = it },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        decorationBox = { innerTextField ->
+                            Column {
+                                Box(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
+                                    if (label.isEmpty()) {
+                                        Text(
+                                            text = "none",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                                HorizontalDivider(color = ElectricCyan, thickness = 2.dp)
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 8.dp)
+                    )
                 }
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Seconds")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { seconds = (seconds + 59) % 60 }) { Text("-") }
-                        Text("$seconds")
-                        OutlinedButton(onClick = { seconds = (seconds + 1) % 60 }) { Text("+") }
+                    TextButton(onClick = onSettings) { Text("SETTINGS") }
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) { Text("CANCEL") }
+                    TextButton(
+                        onClick = {
+                            val total = hours * 3600 + minutes * 60 + seconds
+                            if (total > 0) onConfirm(total, label)
+                        }
+                    ) {
+                        Text("OK")
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val total = hours * 3600 + minutes * 60 + seconds
-                    if (total > 0) onAdd(total)
-                }
-            ) {
-                Text("Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
             }
         }
-    )
+    }
+}
+
+@Composable
+private fun DurationStepper(
+    label: String,
+    value: Int,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        IconButton(onClick = onIncrement) {
+            Icon(Icons.Default.Add, contentDescription = "Increase $label")
+        }
+        Text(
+            text = value.toString().padStart(2, '0'),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(56.dp)
+        )
+        IconButton(onClick = onDecrement) {
+            Icon(Icons.Default.Remove, contentDescription = "Decrease $label")
+        }
+    }
 }

@@ -19,11 +19,21 @@ class BootReceiver : BroadcastReceiver() {
             .filter { it.isEnabled }
             .forEach { alarmScheduler.schedule(it) }
 
-        val timerState = TimerRepository(context).load()
-        if (timerState.isRunning && timerState.endTimeMillis > System.currentTimeMillis()) {
-            TimerScheduler(context).schedule(timerState.endTimeMillis, timerState.label)
-        } else if (timerState.isRunning) {
-            TimerRepository(context).clear()
+        val timerScheduler = TimerScheduler(context)
+        val timerRepository = TimerRepository(context)
+        val now = System.currentTimeMillis()
+        val activeTimers = timerRepository.loadAll()
+        val stillRunning = activeTimers.filter { timer ->
+            timer.isActive()
+        }
+        val expired = activeTimers.filter { timer ->
+            timer.endTimeMillis > 0L && !timer.isActive()
+        }
+        if (expired.isNotEmpty()) {
+            timerRepository.saveAll(stillRunning)
+        }
+        stillRunning.forEach { timer ->
+            timerScheduler.schedule(timer.id, timer.endTimeMillis, timer.label, timer.totalSeconds)
         }
     }
 }

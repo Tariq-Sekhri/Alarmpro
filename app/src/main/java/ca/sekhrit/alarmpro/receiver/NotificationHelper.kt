@@ -21,6 +21,7 @@ import ca.sekhrit.alarmpro.R
 
 object NotificationHelper {
     private const val ALARM_CHANNEL = "alarm_channel"
+    private const val UPCOMING_CHANNEL = "upcoming_alarm_channel"
     private const val TIMER_CHANNEL = "timer_channel"
     private const val STOPWATCH_MARK_NOTIFICATION_ID = 9002
 
@@ -109,7 +110,49 @@ object NotificationHelper {
         }
     }
 
-    fun showTimerNotification(context: Context, label: String) {
+    fun showUpcomingAlarmNotification(
+        context: Context,
+        alarmId: String,
+        label: String,
+        timeText: String,
+        leadText: String
+    ) {
+        if (!canPostNotifications(context)) return
+
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        ensureUpcomingChannel(notificationManager)
+
+        val title = if (label.isBlank()) "Upcoming alarm" else label
+        val content = if (leadText == "Off") {
+            "Alarm at $timeText"
+        } else {
+            "Alarm at $timeText ($leadText)"
+        }
+
+        val notification = NotificationCompat.Builder(context, UPCOMING_CHANNEL)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .build()
+
+        notifySafely(context, notificationManager, upcomingNotificationId(alarmId), notification)
+    }
+
+    fun cancelUpcomingNotification(context: Context, alarmId: String) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(upcomingNotificationId(alarmId))
+    }
+
+    private fun upcomingNotificationId(alarmId: String): Int {
+        return alarmId.hashCode() + 50_000
+    }
+
+    fun showTimerNotification(context: Context, timerId: String, label: String) {
         if (!canPostNotifications(context)) {
             vibrate(context)
             return
@@ -118,25 +161,28 @@ object NotificationHelper {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureTimerChannel(notificationManager)
+        val notificationId = TimerScheduler.notificationIdFor(timerId)
 
         val openIntent = Intent(context, AlarmRingActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_TIMER)
+            putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
             putExtra(AlarmRingActivity.EXTRA_LABEL, label)
         }
         val openPendingIntent = PendingIntent.getActivity(
             context,
-            TimerScheduler.TIMER_NOTIFICATION_ID,
+            notificationId,
             openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val dismissIntent = Intent(context, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_DISMISS_TIMER
+            putExtra(TimerScheduler.EXTRA_TIMER_ID, timerId)
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
             context,
-            TimerScheduler.TIMER_NOTIFICATION_ID + 1,
+            notificationId + 1,
             dismissIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -153,7 +199,7 @@ object NotificationHelper {
             .addAction(0, "Dismiss", dismissPendingIntent)
             .build()
 
-        notifySafely(context, notificationManager, TimerScheduler.TIMER_NOTIFICATION_ID, notification)
+        notifySafely(context, notificationManager, notificationId, notification)
         vibrate(context)
     }
 
@@ -189,10 +235,10 @@ object NotificationHelper {
         notificationManager.cancel(alarmId.hashCode())
     }
 
-    fun cancelTimerNotification(context: Context) {
+    fun cancelTimerNotification(context: Context, timerId: String) {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(TimerScheduler.TIMER_NOTIFICATION_ID)
+        notificationManager.cancel(TimerScheduler.notificationIdFor(timerId))
     }
 
     private fun notifySafely(
@@ -227,6 +273,17 @@ object NotificationHelper {
             )
             setBypassDnd(true)
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+        }
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    private fun ensureUpcomingChannel(notificationManager: NotificationManager) {
+        val channel = NotificationChannel(
+            UPCOMING_CHANNEL,
+            "Upcoming alarms",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Notifications before alarms ring"
         }
         notificationManager.createNotificationChannel(channel)
     }

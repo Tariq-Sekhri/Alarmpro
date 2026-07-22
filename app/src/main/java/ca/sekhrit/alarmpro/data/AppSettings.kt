@@ -5,7 +5,10 @@ data class AppSettings(
     val defaultSnoozeMinutes: Int = 10,
     val defaultVibrate: Boolean = true,
     val defaultReadLabelAloud: Boolean = false,
-    val use24HourFormat: Boolean = false
+    val defaultAlarmSoundUri: String? = null,
+    val use24HourFormat: Boolean = false,
+    val timerSpeechFormat: TimerSpeechFormat = TimerSpeechFormat.TIME_AND_LABEL,
+    val upcomingAlarmLeadMinutes: Int = 60
 ) {
     val snoozeMinutes: Int get() = defaultSnoozeMinutes
     val vibrationEnabled: Boolean get() = defaultVibrate

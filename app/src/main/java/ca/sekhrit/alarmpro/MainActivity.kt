@@ -127,7 +127,7 @@ fun MainScreen() {
                 DefaultAlarmSettingsScreen(onBack = { navController.popBackStack() }, viewModel = alarmViewModel)
             }
             composable("settings/timer") {
-                TimerSettingsScreen(onBack = { navController.popBackStack() })
+                TimerSettingsScreen(onBack = { navController.popBackStack() }, viewModel = alarmViewModel)
             }
             composable("settings/stopwatch") {
                 StopwatchSettingsScreen(onBack = { navController.popBackStack() })

@@ -6,6 +6,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -64,6 +71,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -78,6 +90,7 @@ import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.isSnoozeAllowed
 import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
 import ca.sekhrit.alarmpro.util.AlarmGrouping
+import ca.sekhrit.alarmpro.util.AlarmSoundUtils
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.ui.theme.ElevatedSurface
@@ -93,7 +106,7 @@ private enum class AlarmSortMode {
     TIME_OF_DAY
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun AlarmScreen(    onOpenSettings: () -> Unit,
     onCreateAlarm: () -> Unit,
@@ -104,10 +117,14 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
     val allAlarms by viewModel.alarms.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val searchFocusRequester = remember { FocusRequester() }
     var tick by remember { mutableStateOf(0) }
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var searchFieldFocused by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(AlarmSortMode.NEXT_TRIGGER) }
+    var showSortMenu by remember { mutableStateOf(false) }
     var renameGroupId by remember { mutableStateOf<String?>(null) }
     var renameGroupLabel by remember { mutableStateOf("") }
     var selectionMode by remember { mutableStateOf(false) }
@@ -115,6 +132,16 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
     var showGroupDialog by remember { mutableStateOf(false) }
     var groupDialogName by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var deleteGroupId by remember { mutableStateOf<String?>(null) }
+    var deleteGroupLabel by remember { mutableStateOf("") }
+
+    fun closeSearch() {
+        if (!showSearch) return
+        showSearch = false
+        searchQuery = ""
+        searchFieldFocused = false
+        focusManager.clearFocus()
+    }
 
     fun exitSelectionMode() {
         selectionMode = false
@@ -198,6 +225,10 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
         exitSelectionMode()
     }
 
+    BackHandler(enabled = showSearch && !selectionMode) {
+        closeSearch()
+    }
+
     renameGroupId?.let { groupId ->
         AlertDialog(
             onDismissRequest = { renameGroupId = null },
@@ -232,15 +263,51 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
     if (showGroupDialog) {
         AlertDialog(
             onDismissRequest = { showGroupDialog = false },
-            title = { Text("Group alarms") },
+            title = { Text("Add to group") },
             text = {
-                OutlinedTextField(
-                    value = groupDialogName,
-                    onValueChange = { groupDialogName = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Group name") }
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (groups.isNotEmpty()) {
+                        Text(
+                            text = "Existing groups",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            groups.forEach { group ->
+                                FilterChip(
+                                    selected = false,
+                                    onClick = {
+                                        viewModel.assignAlarmsToGroup(selectedIds, group.id)
+                                        showGroupDialog = false
+                                    },
+                                    label = { Text(group.label) }
+                                )
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                    Text(
+                        text = "New group",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = groupDialogName,
+                        onValueChange = { groupDialogName = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Group name") }
+                    )
+                }
             },
             confirmButton = {
                 TextButton(
@@ -291,6 +358,32 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
         )
     }
 
+    deleteGroupId?.let { groupId ->
+        AlertDialog(
+            onDismissRequest = { deleteGroupId = null },
+            title = { Text("Delete group") },
+            text = {
+                Text("Delete \"$deleteGroupLabel\" and all alarms in this group?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteGroup(groupId)
+                        selectedIds = selectedIds - allAlarms.filter { it.groupId == groupId }.map { it.id }.toSet()
+                        deleteGroupId = null
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteGroupId = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -327,21 +420,50 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                             containerColor = MaterialTheme.colorScheme.background
                         ),
                         actions = {
-                            IconButton(
-                                onClick = {
-                                    sortMode = if (sortMode == AlarmSortMode.NEXT_TRIGGER) {
-                                        AlarmSortMode.TIME_OF_DAY
-                                    } else {
-                                        AlarmSortMode.NEXT_TRIGGER
-                                    }
+                            Box {
+                                IconButton(onClick = {
+                                    closeSearch()
+                                    showSortMenu = true
+                                }) {
+                                    Icon(Icons.Default.Sort, contentDescription = "Sort alarms")
                                 }
-                            ) {
-                                Icon(Icons.Default.Sort, contentDescription = "Sort alarms")
+                                DropdownMenu(
+                                    expanded = showSortMenu,
+                                    onDismissRequest = { showSortMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Next alarm") },
+                                        onClick = {
+                                            sortMode = AlarmSortMode.NEXT_TRIGGER
+                                            showSortMenu = false
+                                        },
+                                        leadingIcon = {
+                                            if (sortMode == AlarmSortMode.NEXT_TRIGGER) {
+                                                Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Time of day") },
+                                        onClick = {
+                                            sortMode = AlarmSortMode.TIME_OF_DAY
+                                            showSortMenu = false
+                                        },
+                                        leadingIcon = {
+                                            if (sortMode == AlarmSortMode.TIME_OF_DAY) {
+                                                Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                            }
+                                        }
+                                    )
+                                }
                             }
-                            IconButton(onClick = { showSearch = !showSearch }) {
+                            IconButton(onClick = { if (showSearch) closeSearch() else showSearch = true }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search alarms")
                             }
-                            IconButton(onClick = onOpenSettings) {
+                            IconButton(onClick = {
+                                closeSearch()
+                                onOpenSettings()
+                            }) {
                                 Icon(Icons.Default.Settings, contentDescription = "Settings")
                             }
                         }
@@ -356,7 +478,18 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                                 .padding(bottom = 8.dp)
+                                .focusRequester(searchFocusRequester)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        searchFieldFocused = true
+                                    } else if (searchFieldFocused) {
+                                        closeSearch()
+                                    }
+                                }
                         )
+                        LaunchedEffect(Unit) {
+                            searchFocusRequester.requestFocus()
+                        }
                     }
                 }
             }
@@ -392,7 +525,17 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(innerPadding)
+                    .then(
+                        if (showSearch) {
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { closeSearch() }
+                        } else {
+                            Modifier
+                        }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -439,17 +582,27 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                 selectionMode = selectionMode,
                                 groupSelected = groupAlarmIds.isNotEmpty() && groupAlarmIds.all { it in selectedIds },
                                 onToggleExpand = {
-                                    if (!selectionMode) viewModel.toggleGroupCollapsed(entry.group.id)
+                                    if (!selectionMode) {
+                                        closeSearch()
+                                        viewModel.toggleGroupCollapsed(entry.group.id)
+                                    }
                                 },
                                 onToggleEnabled = {
-                                    if (!selectionMode) viewModel.toggleGroupEnabled(entry.group.id)
+                                    if (!selectionMode) {
+                                        closeSearch()
+                                        viewModel.toggleGroupEnabled(entry.group.id)
+                                    }
                                 },
                                 onSkipNext = { viewModel.skipNextGroup(entry.group.id) },
                                 onRename = {
                                     renameGroupId = entry.group.id
                                     renameGroupLabel = entry.group.label
                                 },
-                                onDeleteGroup = { viewModel.deleteGroup(entry.group.id) },
+                                onUngroup = { viewModel.ungroupGroup(entry.group.id) },
+                                onDeleteGroup = {
+                                    deleteGroupId = entry.group.id
+                                    deleteGroupLabel = entry.group.label
+                                },
                                 onLongPress = {
                                     if (selectionMode) {
                                         selectedIds = selectedIds + groupAlarmIds
@@ -459,6 +612,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                     }
                                 },
                                 onClick = {
+                                    closeSearch()
                                     if (selectionMode) {
                                         selectedIds = if (groupAlarmIds.all { it in selectedIds }) {
                                             selectedIds - groupAlarmIds
@@ -487,9 +641,18 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                 selectionMode = selectionMode,
                                 selected = entry.alarm.id in selectedIds,
                                 onSelectToggle = { toggleSelected(entry.alarm.id) },
-                                onLongPress = { enterSelectionMode(entry.alarm.id) },
-                                onToggle = { viewModel.toggleAlarm(entry.alarm) },
-                                onEdit = { onEditAlarm(entry.alarm.id) },
+                                onLongPress = {
+                                    closeSearch()
+                                    enterSelectionMode(entry.alarm.id)
+                                },
+                                onToggle = {
+                                    closeSearch()
+                                    viewModel.toggleAlarm(entry.alarm)
+                                },
+                                onEdit = {
+                                    closeSearch()
+                                    onEditAlarm(entry.alarm.id)
+                                },
                                 onCopy = { viewModel.copyAlarm(entry.alarm) },
                                 onPreview = {
                                     context.startActivity(
@@ -511,6 +674,10 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                             putExtra(
                                                 AlarmRingActivity.EXTRA_SNOOZE_MINUTES,
                                                 entry.alarm.resolveSnoozeMinutes(settings)
+                                            )
+                                            putExtra(
+                                                AlarmRingActivity.EXTRA_SOUND_URI,
+                                                AlarmSoundUtils.resolvePlaybackUri(context, entry.alarm, settings).toString()
                                             )
                                         }
                                     )
@@ -572,6 +739,7 @@ private fun GroupHeaderCard(
     onToggleEnabled: () -> Unit,
     onSkipNext: () -> Unit,
     onRename: () -> Unit,
+    onUngroup: () -> Unit,
     onDeleteGroup: () -> Unit,
     onLongPress: () -> Unit,
     onClick: () -> Unit
@@ -678,6 +846,13 @@ private fun GroupHeaderCard(
                 )
                 DropdownMenuItem(
                     text = { Text("Ungroup alarms") },
+                    onClick = {
+                        showMenu = false
+                        onUngroup()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete group") },
                     onClick = {
                         showMenu = false
                         onDeleteGroup()

@@ -45,70 +45,127 @@ object AlarmGrouping {
         ) : ListEntry
     }
 
+    private sealed interface ListSection {
+        val sortKey: Long
+
+        data class GroupSection(
+            val group: AlarmGroup,
+            val members: List<Alarm>,
+            override val sortKey: Long
+        ) : ListSection
+
+        data class UngroupedAlarm(
+            val alarm: Alarm,
+            override val sortKey: Long
+        ) : ListSection
+    }
+
     fun buildListEntries(
         alarms: List<Alarm>,
         groups: List<AlarmGroup>,
         now: LocalDateTime = LocalDateTime.now(),
         sortByNextTrigger: Boolean = true
     ): List<ListEntry> {
-        val entries = mutableListOf<ListEntry>()
         val groupedIds = alarms.mapNotNull { it.groupId }.toSet()
-        val activeGroups = groups
+        val sections = mutableListOf<ListSection>()
+
+        groups
             .filter { it.id in groupedIds }
-            .sortedWith { a, b ->
-                val aMembers = membersOf(a.id, alarms)
-                val bMembers = membersOf(b.id, alarms)
-                val aKey = if (sortByNextTrigger) {
-                    aMembers.filter { it.isEnabled }.minOfOrNull { RepeatCalculator.nextTriggerMillis(it, now) }
-                        ?: Long.MAX_VALUE
-                } else {
-                    aMembers.minOfOrNull { it.time.toSecondOfDay().toLong() } ?: Long.MAX_VALUE
-                }
-                val bKey = if (sortByNextTrigger) {
-                    bMembers.filter { it.isEnabled }.minOfOrNull { RepeatCalculator.nextTriggerMillis(it, now) }
-                        ?: Long.MAX_VALUE
-                } else {
-                    bMembers.minOfOrNull { it.time.toSecondOfDay().toLong() } ?: Long.MAX_VALUE
-                }
-                aKey.compareTo(bKey)
+            .forEach { group ->
+                val labelMembers = membersOf(group.id, alarms)
+                if (labelMembers.isEmpty()) return@forEach
+                val displayMembers = sortAlarms(labelMembers, now, sortByNextTrigger)
+                sections += ListSection.GroupSection(
+                    group = group,
+                    members = displayMembers,
+                    sortKey = sectionSortKey(labelMembers, now, sortByNextTrigger)
+                )
             }
 
-        activeGroups.forEach { group ->
-            val members = membersOf(group.id, alarms)
-            if (members.isEmpty()) return@forEach
+        alarms
+            .filter { it.groupId == null }
+            .forEach { alarm ->
+                sections += ListSection.UngroupedAlarm(
+                    alarm = alarm,
+                    sortKey = alarmSortKey(alarm, now, sortByNextTrigger)
+                )
+            }
 
-            entries += ListEntry.GroupHeader(
-                group = group,
-                alarms = members,
-                allEnabled = groupAllEnabled(members),
-                skipScheduledCount = groupSkipSummary(members, now)
-            )
-
-            if (!group.isCollapsed) {
-                members.forEach { alarm ->
+        val entries = mutableListOf<ListEntry>()
+        sections.sortedBy { it.sortKey }.forEach { section ->
+            when (section) {
+                is ListSection.GroupSection -> {
+                    val labelMembers = membersOf(section.group.id, alarms)
+                    entries += ListEntry.GroupHeader(
+                        group = section.group,
+                        alarms = labelMembers,
+                        allEnabled = groupAllEnabled(labelMembers),
+                        skipScheduledCount = groupSkipSummary(labelMembers, now)
+                    )
+                    if (!section.group.isCollapsed) {
+                        section.members.forEach { alarm ->
+                            entries += ListEntry.AlarmRow(
+                                alarm = alarm,
+                                group = section.group,
+                                indexInGroup = indexInGroup(alarm, labelMembers)
+                            )
+                        }
+                    }
+                }
+                is ListSection.UngroupedAlarm -> {
                     entries += ListEntry.AlarmRow(
-                        alarm = alarm,
-                        group = group,
-                        indexInGroup = indexInGroup(alarm, members)
+                        alarm = section.alarm,
+                        group = null,
+                        indexInGroup = null
                     )
                 }
             }
         }
 
-        val ungrouped = alarms
-            .filter { it.groupId == null }
-            .sortedWith(
-                compareBy<Alarm> { !it.isEnabled }
-                    .thenBy {
-                        if (sortByNextTrigger) RepeatCalculator.nextTriggerMillis(it, now)
-                        else it.time.toSecondOfDay().toLong()
-                    }
-            )
-
-        ungrouped.forEach { alarm ->
-            entries += ListEntry.AlarmRow(alarm = alarm, group = null, indexInGroup = null)
-        }
-
         return entries
+    }
+
+    private fun sortAlarms(
+        alarms: List<Alarm>,
+        now: LocalDateTime,
+        sortByNextTrigger: Boolean
+    ): List<Alarm> {
+        return alarms.sortedWith(
+            compareBy<Alarm> { !it.isEnabled }
+                .thenBy {
+                    if (sortByNextTrigger) {
+                        RepeatCalculator.nextTriggerMillis(it, now)
+                    } else {
+                        it.time.toSecondOfDay().toLong()
+                    }
+                }
+        )
+    }
+
+    private fun alarmSortKey(
+        alarm: Alarm,
+        now: LocalDateTime,
+        sortByNextTrigger: Boolean
+    ): Long {
+        if (!alarm.isEnabled) return Long.MAX_VALUE
+        return if (sortByNextTrigger) {
+            RepeatCalculator.nextTriggerMillis(alarm, now)
+        } else {
+            alarm.time.toSecondOfDay().toLong()
+        }
+    }
+
+    private fun sectionSortKey(
+        members: List<Alarm>,
+        now: LocalDateTime,
+        sortByNextTrigger: Boolean
+    ): Long {
+        val enabled = members.filter { it.isEnabled }
+        if (enabled.isEmpty()) return Long.MAX_VALUE
+        return if (sortByNextTrigger) {
+            enabled.minOf { RepeatCalculator.nextTriggerMillis(it, now) }
+        } else {
+            enabled.minOf { it.time.toSecondOfDay().toLong() }
+        }
     }
 }

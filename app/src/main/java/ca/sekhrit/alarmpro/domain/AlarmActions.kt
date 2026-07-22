@@ -34,6 +34,7 @@ object AlarmActions {
         }
 
         NotificationHelper.cancelAlarmNotification(context, alarmId)
+        NotificationHelper.cancelUpcomingNotification(context, alarmId)
     }
 
     fun snooze(context: Context, alarmId: String) {
@@ -43,5 +44,6 @@ object AlarmActions {
         if (!alarm.isSnoozeAllowed(settings)) return
         AlarmScheduler(context).scheduleSnooze(alarm, alarm.resolveSnoozeMinutes(settings))
         NotificationHelper.cancelAlarmNotification(context, alarmId)
+        NotificationHelper.cancelUpcomingNotification(context, alarmId)
     }
 }

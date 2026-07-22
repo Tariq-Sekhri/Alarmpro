@@ -6,7 +6,9 @@ plugins {
 
 val localAppData = System.getenv("LOCALAPPDATA")
 if (!localAppData.isNullOrBlank()) {
-    val localBuildRoot = file("$localAppData/Alarmpro-build")
+    // Keep generated files outside OneDrive. The previous build tree can remain
+    // locked by Android Studio/indexing, so use a fresh stable local directory.
+    val localBuildRoot = file("$localAppData/Alarmpro-build-active")
     layout.buildDirectory.set(localBuildRoot.resolve("root"))
     subprojects {
         layout.buildDirectory.set(localBuildRoot.resolve(project.name))

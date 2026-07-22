@@ -2,14 +2,19 @@ package ca.sekhrit.alarmpro.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import ca.sekhrit.alarmpro.data.TimerPreset
 import ca.sekhrit.alarmpro.data.TimerPresetRepository
 import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.data.TimerState
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -21,157 +26,214 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     private val presetRepository = TimerPresetRepository(application)
     private val scheduler = TimerScheduler(application)
 
-    private val _state = MutableStateFlow(refreshState(repository.load()))
-    val state: StateFlow<TimerState> = _state.asStateFlow()
+    private val _activeTimers = MutableStateFlow<Map<String, TimerState>>(emptyMap())
+    val activeTimers: StateFlow<Map<String, TimerState>> = _activeTimers.asStateFlow()
 
     private val _presets = MutableStateFlow(presetRepository.loadPresets())
     val presets: StateFlow<List<TimerPreset>> = _presets.asStateFlow()
 
-    private val _activePresetId = MutableStateFlow<String?>(null)
-    val activePresetId: StateFlow<String?> = _activePresetId.asStateFlow()
+    private val _finishedLabels = MutableStateFlow<List<String>>(emptyList())
+    val finishedLabels: StateFlow<List<String>> = _finishedLabels.asStateFlow()
 
-    private val _finished = MutableStateFlow(false)
-    val finished: StateFlow<Boolean> = _finished.asStateFlow()
+    private val _clockMillis = MutableStateFlow(System.currentTimeMillis())
+    val clockMillis: StateFlow<Long> = _clockMillis.asStateFlow()
 
-    private val _finishedLabel = MutableStateFlow("")
-    val finishedLabel: StateFlow<String> = _finishedLabel.asStateFlow()
+    private var tickerJob: Job? = null
+
+    init {
+        syncFromStorage()
+        ensureTicker()
+    }
 
     fun syncFromStorage() {
-        _state.value = refreshState(repository.load())
+        val refreshed = repository.loadAll().map { refreshState(it) }
+        _activeTimers.value = refreshed.associateBy { timerKey(it) }
         _presets.value = presetRepository.loadPresets()
+        ensureTicker()
     }
 
     val nextTimerHeader: String?
         get() {
-            val current = _state.value
-            if (current.totalSeconds <= 0 || current.remainingSeconds <= 0 || current.endTimeMillis <= 0L) {
-                return null
-            }
+            val next = _activeTimers.value.values
+                .filter { it.isActive(_clockMillis.value) }
+                .minByOrNull { it.endTimeMillis }
+                ?: return null
             val finishTime = LocalDateTime.ofInstant(
-                Instant.ofEpochMilli(current.endTimeMillis),
+                Instant.ofEpochMilli(next.endTimeMillis),
                 ZoneId.systemDefault()
             )
             val day = finishTime.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault()))
             val time = finishTime.format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()))
-            return "$day $time"
+            val whenText = "$day $time"
+            return if (next.label.isBlank()) whenText else "${next.label} · $whenText"
         }
 
     fun startPreset(preset: TimerPreset) {
-        _activePresetId.value = preset.id
-        startTimer(preset.totalSeconds, preset.label)
+        stopPreset(preset, persist = false)
+        val endTime = System.currentTimeMillis() + preset.totalSeconds * 1000L
+        val label = preset.label.ifBlank { formatPresetLabel(preset.totalSeconds) }
+        val newState = TimerState(
+            presetId = preset.id,
+            totalSeconds = preset.totalSeconds,
+            remainingSeconds = preset.totalSeconds,
+            endTimeMillis = endTime,
+            isRunning = true,
+            label = label
+        )
+        scheduler.schedule(newState.id, endTime, newState.label, preset.totalSeconds)
+        updateActiveTimer(preset.id, newState)
+        ensureTicker()
     }
 
     fun togglePreset(preset: TimerPreset, enabled: Boolean) {
         if (enabled) {
             startPreset(preset)
         } else {
-            if (_activePresetId.value == preset.id || _state.value.totalSeconds > 0) {
-                resetTimer()
-            }
+            stopPreset(preset)
         }
     }
 
     fun restartPreset(preset: TimerPreset) {
-        resetTimer()
         startPreset(preset)
     }
 
-    fun addPreset(totalSeconds: Int) {
+    fun addPreset(totalSeconds: Int, label: String = "") {
         if (totalSeconds <= 0) return
-        val updated = _presets.value + TimerPreset(totalSeconds = totalSeconds)
+        val updated = _presets.value + TimerPreset(totalSeconds = totalSeconds, label = label.trim())
         _presets.value = updated
         presetRepository.savePresets(updated)
+    }
+
+    fun updatePreset(preset: TimerPreset, totalSeconds: Int, label: String) {
+        if (totalSeconds <= 0) return
+        val trimmed = label.trim()
+        val updatedPreset = preset.copy(totalSeconds = totalSeconds, label = trimmed)
+        val updated = _presets.value.map { if (it.id == preset.id) updatedPreset else it }
+        _presets.value = updated
+        presetRepository.savePresets(updated)
+
+        val active = _activeTimers.value[preset.id] ?: return
+        if (!active.isActive()) return
+        if (totalSeconds != preset.totalSeconds) {
+            startPreset(updatedPreset)
+            return
+        }
+        val displayLabel = trimmed.ifBlank { formatPresetLabel(totalSeconds) }
+        scheduler.cancel(active.id)
+        scheduler.schedule(active.id, active.endTimeMillis, displayLabel, totalSeconds)
+        updateActiveTimer(preset.id, active.copy(label = displayLabel))
     }
 
     fun deletePreset(preset: TimerPreset) {
-        if (_activePresetId.value == preset.id) {
-            resetTimer()
-        }
+        stopPreset(preset, persist = false)
         val updated = _presets.value.filter { it.id != preset.id }
         _presets.value = updated
         presetRepository.savePresets(updated)
+        persistActiveTimers()
     }
 
-    fun startTimer(totalSeconds: Int, label: String = "") {
-        if (totalSeconds <= 0) return
-        scheduler.cancel()
-        val endTime = System.currentTimeMillis() + totalSeconds * 1000L
-        val newState = TimerState(
-            totalSeconds = totalSeconds,
-            remainingSeconds = totalSeconds,
-            endTimeMillis = endTime,
-            isRunning = true,
-            label = label.trim()
-        )
-        repository.save(newState)
-        scheduler.schedule(endTime, newState.label)
-        _state.value = newState
-        _finished.value = false
-        _finishedLabel.value = ""
-    }
-
-    fun pauseTimer() {
-        val current = refreshState(_state.value)
-        if (!current.isRunning || current.remainingSeconds <= 0) return
-        scheduler.cancel()
-        val paused = current.copy(isRunning = false)
-        repository.save(paused)
-        _state.value = paused
-    }
-
-    fun resumeTimer() {
-        val current = _state.value
-        if (current.isRunning || current.remainingSeconds <= 0) return
-        val endTime = System.currentTimeMillis() + current.remainingSeconds * 1000L
-        val running = current.copy(isRunning = true, endTimeMillis = endTime)
-        repository.save(running)
-        scheduler.schedule(endTime, running.label)
-        _state.value = running
-    }
-
-    fun resetTimer() {
-        scheduler.cancel()
-        repository.clear()
-        _state.value = TimerState()
-        _activePresetId.value = null
-        _finished.value = false
-        _finishedLabel.value = ""
-    }
-
-    fun markFinished() {
-        scheduler.cancel()
-        _finishedLabel.value = _state.value.label
-        _state.value = _state.value.copy(isRunning = false, remainingSeconds = 0)
-        repository.clear()
-        _activePresetId.value = null
-        _finished.value = true
+    fun stopPreset(preset: TimerPreset, persist: Boolean = true) {
+        val current = _activeTimers.value[preset.id] ?: return
+        scheduler.cancel(current.id)
+        val updated = _activeTimers.value.toMutableMap()
+        updated.remove(preset.id)
+        _activeTimers.value = updated
+        if (persist) {
+            persistActiveTimers()
+        }
+        ensureTicker()
     }
 
     fun acknowledgeFinished() {
-        _finished.value = false
-        _finishedLabel.value = ""
-        _state.value = TimerState()
-        _activePresetId.value = null
+        _finishedLabels.value = _finishedLabels.value.drop(1)
     }
 
-    fun tick() {
-        val refreshed = refreshState(_state.value)
-        if (refreshed.remainingSeconds <= 0 && refreshed.totalSeconds > 0 && refreshed.isRunning) {
-            markFinished()
+    private fun ensureTicker() {
+        val hasActive = _activeTimers.value.values.any { it.isActive() }
+        if (!hasActive) {
+            tickerJob?.cancel()
+            tickerJob = null
+            return
+        }
+        if (tickerJob?.isActive == true) return
+        tickerJob = viewModelScope.launch {
+            while (isActive) {
+                val now = System.currentTimeMillis()
+                _clockMillis.value = now
+                tick(now)
+                if (_activeTimers.value.values.none { it.isActive(now) }) {
+                    break
+                }
+                delay(200)
+            }
+            tickerJob = null
+        }
+    }
+
+    private fun tick(now: Long = System.currentTimeMillis()) {
+        val current = _activeTimers.value
+        if (current.isEmpty()) return
+
+        val refreshed = current.mapValues { (_, state) -> refreshState(state, now) }.toMutableMap()
+        val finishedEntries = refreshed.filter { (_, state) ->
+            state.totalSeconds > 0 && state.endTimeMillis > 0L && !state.isActive(now)
+        }
+
+        if (finishedEntries.isEmpty()) {
+            if (refreshed != current) {
+                _activeTimers.value = refreshed
+            }
+            return
+        }
+
+        finishedEntries.forEach { (key, state) ->
+            scheduler.cancel(state.id)
+            refreshed.remove(key)
+            enqueueFinished(state.label)
+        }
+        _activeTimers.value = refreshed
+        persistActiveTimers()
+    }
+
+    private fun updateActiveTimer(key: String, state: TimerState) {
+        val updated = _activeTimers.value.toMutableMap()
+        updated[key] = state
+        _activeTimers.value = updated
+        persistActiveTimers()
+    }
+
+    private fun persistActiveTimers() {
+        repository.saveAll(_activeTimers.value.values.toList())
+    }
+
+    private fun enqueueFinished(label: String) {
+        _finishedLabels.value = _finishedLabels.value + label
+    }
+
+    private fun timerKey(state: TimerState): String {
+        return state.presetId ?: state.id
+    }
+
+    private fun formatPresetLabel(totalSeconds: Int): String {
+        val minutes = totalSeconds / 60
+        return if (minutes >= 60) {
+            "${minutes / 60} hr timer"
+        } else if (minutes > 0) {
+            "$minutes min timer"
         } else {
-            _state.value = refreshed
+            "$totalSeconds sec timer"
         }
     }
 
-    private fun refreshState(state: TimerState): TimerState {
-        if (!state.isRunning || state.endTimeMillis <= 0L) {
-            return state
+    private fun refreshState(state: TimerState, now: Long = System.currentTimeMillis()): TimerState {
+        if (state.endTimeMillis <= 0L) {
+            return state.copy(isRunning = false, remainingSeconds = 0)
         }
-        val remaining = ((state.endTimeMillis - System.currentTimeMillis()) / 1000L).toInt()
+        val remaining = state.liveRemainingSeconds(now)
         return if (remaining <= 0) {
             state.copy(remainingSeconds = 0, isRunning = false)
         } else {
-            state.copy(remainingSeconds = remaining)
+            state.copy(remainingSeconds = remaining, isRunning = true)
         }
     }
 }

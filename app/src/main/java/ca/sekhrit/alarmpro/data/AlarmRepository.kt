@@ -34,6 +34,7 @@ class AlarmRepository(context: Context) {
                     put("snoozeEnabled", alarm.snoozeEnabled)
                     put("snoozeMinutes", alarm.snoozeMinutes ?: -1)
                     put("skipUntilEpochDay", alarm.skipUntilEpochDay ?: -1)
+                    put("soundUri", alarm.soundUri.orEmpty())
                     put("groupId", alarm.groupId.orEmpty())
                     put("createdEpochDay", alarm.createdEpochDay)
                     put("repeat", serializeRepeat(alarm.repeat))
@@ -61,6 +62,7 @@ class AlarmRepository(context: Context) {
                         snoozeEnabled = item.optBoolean("snoozeEnabled", true),
                         snoozeMinutes = item.optInt("snoozeMinutes", -1).let { if (it < 0) null else it },
                         skipUntilEpochDay = item.optLong("skipUntilEpochDay", -1).let { if (it < 0) null else it },
+                        soundUri = item.optString("soundUri", "").ifBlank { null },
                         groupId = item.optString("groupId", "").ifBlank { null },
                         createdEpochDay = item.optLong("createdEpochDay", LocalDate.now().toEpochDay())
         )

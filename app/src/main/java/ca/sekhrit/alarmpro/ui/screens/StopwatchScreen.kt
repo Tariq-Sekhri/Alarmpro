@@ -80,6 +80,7 @@ fun StopwatchScreen(
     val context = LocalContext.current
     var showCustomDialog by remember { mutableStateOf(false) }
     var alertsExpanded by remember { mutableStateOf(true) }
+    var lapsExpanded by remember { mutableStateOf(true) }
     var showMenu by remember { mutableStateOf(false) }
     val currentLapMs = state.laps.lastOrNull()?.let { state.elapsedMs - it.totalTimeMs }
         ?: state.elapsedMs
@@ -220,21 +221,38 @@ fun StopwatchScreen(
             modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
         )
 
-        if (state.laps.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Lap Time:", style = MaterialTheme.typography.labelLarge)
-                Text("Total Time:", style = MaterialTheme.typography.labelLarge)
-            }
-            state.laps.forEach { lap ->
-                LapRow(
-                    lap = lap,
-                    isBest = lap.lapTimeMs == bestLapMs
+        CollapsibleSection(
+            title = "Laps",
+            summary = when {
+                state.laps.isEmpty() -> "No laps yet"
+                state.laps.size == 1 -> "1 lap"
+                else -> "${state.laps.size} laps"
+            },
+            expanded = lapsExpanded,
+            onToggle = { lapsExpanded = !lapsExpanded }
+        ) {
+            if (state.laps.isEmpty()) {
+                Text(
+                    text = "Tap LAP while running to record a split.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Lap Time:", style = MaterialTheme.typography.labelLarge)
+                    Text("Total Time:", style = MaterialTheme.typography.labelLarge)
+                }
+                state.laps.forEach { lap ->
+                    LapRow(
+                        lap = lap,
+                        isBest = lap.lapTimeMs == bestLapMs
+                    )
+                }
             }
         }
 
