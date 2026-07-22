@@ -9,9 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Tariq-Sekhri/Alarmpro/actions/workflows/android-build.yml">
-    <img src="https://github.com/Tariq-Sekhri/Alarmpro/actions/workflows/android-build.yml/badge.svg" alt="Android Build"/>
-  </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"/>
   </a>
@@ -78,8 +75,6 @@ On Windows:
 ```bat
 gradlew.bat :app:installDebug
 ```
-
-CI builds run on every push to `main` via GitHub Actions. Download APK artifacts from the [Actions](https://github.com/Tariq-Sekhri/Alarmpro/actions) tab after a successful build.
 
 ## Tech stack
 
