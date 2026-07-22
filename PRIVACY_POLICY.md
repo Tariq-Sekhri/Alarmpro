@@ -1,6 +1,7 @@
 # Privacy Policy for Alarmpro
 
-**Effective date: July 22, 2026**  
+**Effective date: July 22, 2026**
+
 **Last updated: July 22, 2026**
 
 Alarmpro is an Android alarm clock application developed and maintained by Tariq Sekhri (`Tariq-Sekhri` on GitHub). This Privacy Policy explains how Alarmpro accesses, uses, stores, shares, retains, and deletes information.
