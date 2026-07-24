@@ -8,8 +8,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -20,9 +18,11 @@ import ca.sekhrit.alarmpro.AlarmRingActivity
 import ca.sekhrit.alarmpro.R
 
 object NotificationHelper {
-    private const val ALARM_CHANNEL = "alarm_channel"
+    // Ringing is handled by AlarmRingActivity so the selected sound is the only sound.
+    // Version the channel to replace older installs whose channel still had a default sound.
+    private const val ALARM_CHANNEL = "alarm_channel_v2"
     private const val UPCOMING_CHANNEL = "upcoming_alarm_channel"
-    private const val TIMER_CHANNEL = "timer_channel"
+    private const val TIMER_CHANNEL = "timer_channel_v2"
     private const val STOPWATCH_MARK_NOTIFICATION_ID = 9002
 
     fun canPostNotifications(context: Context): Boolean {
@@ -152,7 +152,12 @@ object NotificationHelper {
         return alarmId.hashCode() + 50_000
     }
 
-    fun showTimerNotification(context: Context, timerId: String, label: String) {
+    fun showTimerNotification(
+        context: Context,
+        timerId: String,
+        label: String,
+        totalSeconds: Int
+    ) {
         if (!canPostNotifications(context)) {
             vibrate(context)
             return
@@ -168,6 +173,7 @@ object NotificationHelper {
             putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_TIMER)
             putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
             putExtra(AlarmRingActivity.EXTRA_LABEL, label)
+            putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
         }
         val openPendingIntent = PendingIntent.getActivity(
             context,
@@ -194,7 +200,9 @@ object NotificationHelper {
             .setContentText("Timer complete")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setFullScreenIntent(openPendingIntent, true)
             .setContentIntent(openPendingIntent)
             .addAction(0, "Dismiss", dismissPendingIntent)
             .build()
@@ -255,8 +263,6 @@ object NotificationHelper {
     }
 
     private fun ensureAlarmChannel(notificationManager: NotificationManager) {
-        val alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
         val channel = NotificationChannel(
             ALARM_CHANNEL,
             "Alarms",
@@ -264,13 +270,7 @@ object NotificationHelper {
         ).apply {
             description = "Alarm notifications"
             enableVibration(true)
-            setSound(
-                alarmSound,
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
+            setSound(null, null)
             setBypassDnd(true)
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         }
@@ -289,8 +289,6 @@ object NotificationHelper {
     }
 
     private fun ensureTimerChannel(notificationManager: NotificationManager) {
-        val alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
         val channel = NotificationChannel(
             TIMER_CHANNEL,
             "Timers",
@@ -298,13 +296,7 @@ object NotificationHelper {
         ).apply {
             description = "Timer and stopwatch notifications"
             enableVibration(true)
-            setSound(
-                alarmSound,
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
+            setSound(null, null)
         }
         notificationManager.createNotificationChannel(channel)
     }

@@ -32,9 +32,6 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     private val _presets = MutableStateFlow(presetRepository.loadPresets())
     val presets: StateFlow<List<TimerPreset>> = _presets.asStateFlow()
 
-    private val _finishedLabels = MutableStateFlow<List<String>>(emptyList())
-    val finishedLabels: StateFlow<List<String>> = _finishedLabels.asStateFlow()
-
     private val _clockMillis = MutableStateFlow(System.currentTimeMillis())
     val clockMillis: StateFlow<Long> = _clockMillis.asStateFlow()
 
@@ -151,10 +148,6 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         ensureTicker()
     }
 
-    fun acknowledgeFinished() {
-        _finishedLabels.value = _finishedLabels.value.drop(1)
-    }
-
     private fun ensureTicker() {
         val hasActive = _activeTimers.value.values.any { it.isActive() }
         if (!hasActive) {
@@ -193,10 +186,8 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        finishedEntries.forEach { (key, state) ->
-            scheduler.cancel(state.id)
+        finishedEntries.forEach { (key, _) ->
             refreshed.remove(key)
-            enqueueFinished(state.label)
         }
         _activeTimers.value = refreshed
         persistActiveTimers()
@@ -211,10 +202,6 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun persistActiveTimers() {
         repository.saveAll(_activeTimers.value.values.toList())
-    }
-
-    private fun enqueueFinished(label: String) {
-        _finishedLabels.value = _finishedLabels.value + label
     }
 
     private fun timerKey(state: TimerState): String {

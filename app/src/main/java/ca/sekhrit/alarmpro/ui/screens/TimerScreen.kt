@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TimerOff
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +56,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,6 +83,7 @@ import ca.sekhrit.alarmpro.ui.theme.ElevatedSurface
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,7 +93,6 @@ fun TimerScreen(
 ) {
     val activeTimers by viewModel.activeTimers.collectAsState()
     val presets by viewModel.presets.collectAsState()
-    val finishedLabels by viewModel.finishedLabels.collectAsState()
     val clockMillis by viewModel.clockMillis.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editPreset by remember { mutableStateOf<TimerPreset?>(null) }
@@ -123,19 +123,6 @@ fun TimerScreen(
 
     LaunchedEffect(Unit) {
         viewModel.syncFromStorage()
-    }
-
-    finishedLabels.firstOrNull()?.let { finishedLabel ->
-        AlertDialog(
-            onDismissRequest = { viewModel.acknowledgeFinished() },
-            title = { Text("Timer finished") },
-            text = { Text(if (finishedLabel.isBlank()) "Time is up" else finishedLabel) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.acknowledgeFinished() }) {
-                    Text("OK")
-                }
-            }
-        )
     }
 
     if (showAddDialog) {
@@ -544,6 +531,7 @@ internal fun DurationWheel(
     var fieldWasFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val scrollScope = rememberCoroutineScope()
     val currentValue by rememberUpdatedState(value)
     val isEditing by rememberUpdatedState(editing)
 
@@ -612,7 +600,16 @@ internal fun DurationWheel(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(44.dp),
+                            .height(44.dp)
+                            .clickable(enabled = !editing) {
+                                if (isCenter) {
+                                    editing = true
+                                } else {
+                                    scrollScope.launch {
+                                        listState.animateScrollToItem(index - 1)
+                                    }
+                                }
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         if (isCenter && editing) {
@@ -650,9 +647,7 @@ internal fun DurationWheel(
                                 fontSize = 14.sp,
                                 color = if (isCenter) Color.White else Color(0xFF858E95),
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(enabled = isCenter) { editing = true }
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }

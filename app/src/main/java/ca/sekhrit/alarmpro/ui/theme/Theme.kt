@@ -41,6 +41,11 @@ private val AlarmProTypography = Typography(
         fontWeight = FontWeight.Medium,
         fontSize = 28.sp
     ),
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 33.sp
+    ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,

@@ -119,7 +119,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val label = intent.getStringExtra(TimerScheduler.EXTRA_TIMER_LABEL).orEmpty()
         val totalSeconds = intent.getIntExtra(TimerScheduler.EXTRA_TIMER_TOTAL_SECONDS, 0)
         TimerRepository(context).removeTimer(timerId)
-        NotificationHelper.showTimerNotification(context, timerId, label)
+        NotificationHelper.showTimerNotification(context, timerId, label, totalSeconds)
 
         val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

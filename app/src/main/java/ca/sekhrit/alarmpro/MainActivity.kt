@@ -6,19 +6,11 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -62,33 +54,12 @@ fun MainScreen() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val mainTabs = setOf("alarm", "timer", "stopwatch", "clock")
-    val showBottomBar = currentRoute in mainTabs
+    val showBottomBar = currentRoute in setOf("alarm", "timer", "stopwatch", "clock")
     val activity = LocalActivity.current as ComponentActivity
     val alarmViewModel: AlarmViewModel = viewModel(activity)
 
-    fun openSettings() {
-        navController.navigate("settings")
-    }
-
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(vertical = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = BuildConfig.VERSION_NAME,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-            }
-        },
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
         bottomBar = {
             if (showBottomBar) {
                 AppBottomBar(navController)
@@ -102,20 +73,20 @@ fun MainScreen() {
         ) {
             composable("alarm") {
                 AlarmScreen(
-                    onOpenSettings = { openSettings() },
+                    onOpenSettings = { navController.navigate("settings") },
                     onCreateAlarm = { navController.navigate("alarm/edit") },
                     onEditAlarm = { alarmId -> navController.navigate("alarm/edit/$alarmId") },
                     viewModel = alarmViewModel
                 )
             }
             composable("timer") {
-                TimerScreen(onOpenSettings = { openSettings() })
+                TimerScreen(onOpenSettings = { navController.navigate("settings") })
             }
             composable("stopwatch") {
-                StopwatchScreen(onOpenSettings = { openSettings() })
+                StopwatchScreen(onOpenSettings = { navController.navigate("settings") })
             }
             composable("clock") {
-                ClockScreen(onOpenSettings = { openSettings() }, viewModel = alarmViewModel)
+                ClockScreen(onOpenSettings = { navController.navigate("settings") }, viewModel = alarmViewModel)
             }
             composable("alarm/edit") {
                 AlarmEditScreen(
