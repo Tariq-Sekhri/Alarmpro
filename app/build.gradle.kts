@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "ca.sekhrit.alarmpro"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "ca.sekhrit.alarmpro"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 6
-        versionName = "0.2.0"
+        targetSdk = 36
+        versionCode = 7
+        versionName = "0.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

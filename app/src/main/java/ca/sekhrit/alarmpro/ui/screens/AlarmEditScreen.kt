@@ -51,7 +51,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.RepeatSchedule
 import ca.sekhrit.alarmpro.data.RepeatType
+import ca.sekhrit.alarmpro.data.TimePickerStyle
 import ca.sekhrit.alarmpro.ui.components.AlarmSoundPickerRow
+import ca.sekhrit.alarmpro.ui.components.WheelTimePicker
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.ui.theme.WarmAmber
@@ -82,6 +84,8 @@ fun AlarmEditScreen(
         initialMinute = initialTime.minute,
         is24Hour = settings.use24HourFormat
     )
+    var selectedHour by remember(existing?.id) { mutableIntStateOf(initialTime.hour) }
+    var selectedMinute by remember(existing?.id) { mutableIntStateOf(initialTime.minute) }
     var label by remember(existing?.id) { mutableStateOf(existing?.label.orEmpty()) }
     var isActive by remember(existing?.id) { mutableStateOf(existing?.isEnabled ?: true) }
     var repeatType by remember(existing?.id) { mutableStateOf(existing?.repeat?.type ?: RepeatType.ONCE) }
@@ -121,7 +125,11 @@ fun AlarmEditScreen(
         dayOfMonth = dayOfMonth,
         anchorEpochDay = anchorEpochDay
     )
-    val selectedTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
+    val selectedTime = if (settings.timePickerStyle == TimePickerStyle.ANALOG) {
+        LocalTime.of(timePickerState.hour, timePickerState.minute)
+    } else {
+        LocalTime.of(selectedHour, selectedMinute)
+    }
     val previewAlarm = Alarm(time = selectedTime, repeat = previewSchedule, isEnabled = true)
     val countdownLine = TimeUtils.nextAlarmHeader(listOf(previewAlarm), settings.use24HourFormat)
         ?.countdownLine ?: "(less than a minute from now)"
@@ -241,7 +249,19 @@ fun AlarmEditScreen(
                     .padding(top = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                TimePicker(state = timePickerState)
+                if (settings.timePickerStyle == TimePickerStyle.ANALOG) {
+                    TimePicker(state = timePickerState)
+                } else {
+                    WheelTimePicker(
+                        hour = selectedHour,
+                        minute = selectedMinute,
+                        is24Hour = settings.use24HourFormat,
+                        onTimeChange = { h, m ->
+                            selectedHour = h
+                            selectedMinute = m
+                        }
+                    )
+                }
             }
 
             Text(

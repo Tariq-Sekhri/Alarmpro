@@ -14,7 +14,12 @@ class SettingsRepository(context: Context) {
             defaultAlarmSoundUri = prefs.getString(KEY_DEFAULT_ALARM_SOUND, null)?.ifBlank { null },
             use24HourFormat = prefs.getBoolean(KEY_24H, false),
             timerSpeechFormat = TimerSpeechFormat.fromStored(prefs.getString(KEY_TIMER_SPEECH, null)),
-            upcomingAlarmLeadMinutes = prefs.getInt(KEY_UPCOMING_ALARM_LEAD, 60)
+            upcomingAlarmLeadMinutes = prefs.getInt(KEY_UPCOMING_ALARM_LEAD, 60),
+            timePickerStyle = try {
+                TimePickerStyle.valueOf(prefs.getString(KEY_TIME_PICKER_STYLE, TimePickerStyle.ANALOG.name) ?: TimePickerStyle.ANALOG.name)
+            } catch (e: Exception) {
+                TimePickerStyle.ANALOG
+            }
         )
     }
 
@@ -28,6 +33,7 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_24H, settings.use24HourFormat)
             .putString(KEY_TIMER_SPEECH, settings.timerSpeechFormat.name)
             .putInt(KEY_UPCOMING_ALARM_LEAD, settings.upcomingAlarmLeadMinutes)
+            .putString(KEY_TIME_PICKER_STYLE, settings.timePickerStyle.name)
             .apply()
     }
 
@@ -41,6 +47,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_24H = "use_24h"
         private const val KEY_TIMER_SPEECH = "timer_speech_format"
         private const val KEY_UPCOMING_ALARM_LEAD = "upcoming_alarm_lead_minutes"
+        private const val KEY_TIME_PICKER_STYLE = "time_picker_style"
         private const val KEY_LEGACY_SNOOZE = "snooze_minutes"
         private const val KEY_LEGACY_VIBRATION = "vibration_enabled"
     }

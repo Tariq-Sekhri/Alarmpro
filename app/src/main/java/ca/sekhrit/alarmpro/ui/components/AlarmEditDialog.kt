@@ -37,10 +37,14 @@ import ca.sekhrit.alarmpro.util.RepeatCalculator
 import java.time.LocalDate
 import java.time.LocalTime
 
+import ca.sekhrit.alarmpro.data.TimePickerStyle
+import ca.sekhrit.alarmpro.ui.components.WheelTimePicker
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AlarmEditDialog(
     alarm: Alarm?,
+    timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
     defaultVibrate: Boolean = true,
     defaultSnoozeEnabled: Boolean = true,
     defaultSnoozeMinutes: Int = 10,
@@ -55,6 +59,8 @@ fun AlarmEditDialog(
         initialMinute = initialTime.minute,
         is24Hour = use24Hour
     )
+    var selectedHour by remember(alarm?.id) { mutableIntStateOf(initialTime.hour) }
+    var selectedMinute by remember(alarm?.id) { mutableIntStateOf(initialTime.minute) }
     var label by remember(alarm?.id) { mutableStateOf(alarm?.label.orEmpty()) }
     var repeatType by remember(alarm?.id) { mutableStateOf(alarm?.repeat?.type ?: RepeatType.ONCE) }
     var selectedDays by remember(alarm?.id) { mutableStateOf(alarm?.repeat?.daysOfWeek ?: emptySet()) }
@@ -99,7 +105,19 @@ fun AlarmEditDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                TimePicker(state = timePickerState)
+                if (timePickerStyle == TimePickerStyle.ANALOG) {
+                    TimePicker(state = timePickerState)
+                } else {
+                    WheelTimePicker(
+                        hour = selectedHour,
+                        minute = selectedMinute,
+                        is24Hour = use24Hour,
+                        onTimeChange = { h, m ->
+                            selectedHour = h
+                            selectedMinute = m
+                        }
+                    )
+                }
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
@@ -251,8 +269,13 @@ fun AlarmEditDialog(
         confirmButton = {
             TextButton(onClick = {
                 val snoozeMinutes = if (!snoozeEnabled || useDefaultSnoozeLength) null else customSnoozeMinutes
+                val selectedTime = if (timePickerStyle == TimePickerStyle.ANALOG) {
+                    LocalTime.of(timePickerState.hour, timePickerState.minute)
+                } else {
+                    LocalTime.of(selectedHour, selectedMinute)
+                }
                 onSave(
-                    LocalTime.of(timePickerState.hour, timePickerState.minute),
+                    selectedTime,
                     label,
                     previewSchedule,
                     vibrate,

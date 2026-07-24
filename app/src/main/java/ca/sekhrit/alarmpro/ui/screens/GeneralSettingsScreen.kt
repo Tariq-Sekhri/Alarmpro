@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ca.sekhrit.alarmpro.data.TimePickerStyle
 import ca.sekhrit.alarmpro.data.TimerSpeechFormat
 import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.ui.components.SettingsCategoryHeader
@@ -41,6 +42,10 @@ fun GeneralSettingsScreen(
     val settings by viewModel.settings.collectAsState()
     var showSpeechDialog by remember { mutableStateOf(false) }
     var showUpcomingDialog by remember { mutableStateOf(false) }
+    var showTimePickerStyleDialog by remember { mutableStateOf(false) }
+
+    val timePickerOptions = remember { TimePickerStyle.entries.map { it.label } }
+    val timePickerSelectedIndex = TimePickerStyle.entries.indexOf(settings.timePickerStyle)
 
     val speechOptions = remember { TimerSpeechFormat.entries.map { it.label } }
     val speechSelectedIndex = TimerSpeechFormat.entries.indexOf(settings.timerSpeechFormat)
@@ -80,6 +85,21 @@ fun GeneralSettingsScreen(
         )
     }
 
+    if (showTimePickerStyleDialog) {
+        SettingsOptionDialog(
+            title = "Time picker style",
+            options = timePickerOptions,
+            selectedIndex = timePickerSelectedIndex,
+            onDismiss = { showTimePickerStyleDialog = false },
+            onSelect = { index ->
+                viewModel.updateSettings(
+                    settings.copy(timePickerStyle = TimePickerStyle.entries[index])
+                )
+                showTimePickerStyleDialog = false
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -110,6 +130,11 @@ fun GeneralSettingsScreen(
                 onCheckedChange = {
                     viewModel.updateSettings(settings.copy(use24HourFormat = it))
                 }
+            )
+            SettingsValueRow(
+                title = "Time picker style",
+                value = settings.timePickerStyle.label,
+                onClick = { showTimePickerStyleDialog = true }
             )
 
             SettingsCategoryHeader("Speech Settings")
