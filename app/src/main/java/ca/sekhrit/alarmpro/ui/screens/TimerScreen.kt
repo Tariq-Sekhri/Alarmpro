@@ -155,7 +155,9 @@ fun TimerScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(if (selectionMode) "${selectedIds.size} selected" else "Countdown Timer")
+                    ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle(
+                        if (selectionMode) "${selectedIds.size} selected" else "Countdown Timer"
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

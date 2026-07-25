@@ -96,7 +96,11 @@ fun DefaultAlarmSettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Default Alarm Settings") },
+                title = {
+                    ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle(
+                        "Default Alarm Settings"
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),

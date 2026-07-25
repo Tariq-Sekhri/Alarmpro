@@ -104,7 +104,9 @@ fun GeneralSettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("General Settings") },
+                title = {
+                    ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle("General Settings")
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
@@ -124,8 +126,8 @@ fun GeneralSettingsScreen(
         ) {
             SettingsCategoryHeader("Display")
             SettingsSwitchRow(
-                title = "24-hour format",
-                subtitle = "Show times in 24-hour format",
+                title = "Military time",
+                subtitle = "Use 24-hour time, for example 18:30",
                 checked = settings.use24HourFormat,
                 onCheckedChange = {
                     viewModel.updateSettings(settings.copy(use24HourFormat = it))

@@ -39,9 +39,24 @@ class AlarmScheduler(private val context: Context) {
     }
 
     fun cancel(alarm: Alarm) {
-        cancelRequestCode(alarm.id.hashCode())
-        cancelRequestCode(alarm.id.hashCode() + SNOOZE_OFFSET)
-        cancelUpcoming(alarm)
+        cancel(alarm.id)
+    }
+
+    fun cancel(alarmId: String) {
+        cancelRequestCode(alarmId.hashCode(), ACTION_ALARM)
+        cancelRequestCode(alarmId.hashCode() + SNOOZE_OFFSET, ACTION_ALARM)
+        cancelRequestCode(alarmId.hashCode() + UPCOMING_OFFSET, ACTION_UPCOMING_ALARM)
+        NotificationHelper.cancelUpcomingNotification(context, alarmId)
+    }
+
+    fun cancelSnooze(alarmId: String) {
+        cancelRequestCode(alarmId.hashCode() + SNOOZE_OFFSET, ACTION_ALARM)
+    }
+
+    fun cancelRegular(alarmId: String) {
+        cancelRequestCode(alarmId.hashCode(), ACTION_ALARM)
+        cancelRequestCode(alarmId.hashCode() + UPCOMING_OFFSET, ACTION_UPCOMING_ALARM)
+        NotificationHelper.cancelUpcomingNotification(context, alarmId)
     }
 
     private fun scheduleUpcoming(
@@ -82,7 +97,7 @@ class AlarmScheduler(private val context: Context) {
     }
 
     private fun cancelUpcoming(alarm: Alarm) {
-        cancelRequestCode(alarm.id.hashCode() + UPCOMING_OFFSET)
+        cancelRequestCode(alarm.id.hashCode() + UPCOMING_OFFSET, ACTION_UPCOMING_ALARM)
         NotificationHelper.cancelUpcomingNotification(context, alarm.id)
     }
 
@@ -131,8 +146,10 @@ class AlarmScheduler(private val context: Context) {
         }
     }
 
-    private fun cancelRequestCode(requestCode: Int) {
-        val intent = Intent(context, AlarmReceiver::class.java)
+    private fun cancelRequestCode(requestCode: Int, action: String) {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            this.action = action
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,

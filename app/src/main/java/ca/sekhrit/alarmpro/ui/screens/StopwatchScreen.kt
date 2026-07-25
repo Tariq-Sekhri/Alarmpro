@@ -125,7 +125,9 @@ fun StopwatchScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Stopwatch") },
+                title = {
+                    ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle("Stopwatch")
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),

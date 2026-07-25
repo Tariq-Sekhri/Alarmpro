@@ -15,6 +15,7 @@ import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import ca.sekhrit.alarmpro.AlarmRingActivity
+import ca.sekhrit.alarmpro.MainActivity
 import ca.sekhrit.alarmpro.R
 
 object NotificationHelper {
@@ -33,27 +34,27 @@ object NotificationHelper {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    fun showAlarmNotification(
+    fun buildAlarmNotification(
         context: Context,
         alarmId: String,
         hour: Int,
         minute: Int,
         label: String,
-        vibrate: Boolean,
         snoozeAllowed: Boolean,
         snoozeMinutes: Int
-    ) {
+    ): Notification {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureAlarmChannel(notificationManager)
 
         val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_ALARM)
             putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
             putExtra(AlarmRingActivity.EXTRA_HOUR, hour)
             putExtra(AlarmRingActivity.EXTRA_MINUTE, minute)
             putExtra(AlarmRingActivity.EXTRA_LABEL, label)
-            putExtra(AlarmRingActivity.EXTRA_VIBRATE, vibrate)
             putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
             putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
         }
@@ -103,11 +104,7 @@ object NotificationHelper {
             builder.addAction(0, "Snooze ${snoozeMinutes}m", snoozePendingIntent)
         }
 
-        notifySafely(context, notificationManager, alarmId.hashCode(), builder.build())
-
-        if (vibrate) {
-            vibrate(context)
-        }
+        return builder.build()
     }
 
     fun showUpcomingAlarmNotification(
@@ -130,6 +127,18 @@ object NotificationHelper {
             "Alarm at $timeText ($leadText)"
         }
 
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
+        }
+        val openPendingIntent = PendingIntent.getActivity(
+            context,
+            upcomingNotificationId(alarmId),
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, UPCOMING_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
@@ -137,6 +146,7 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
+            .setContentIntent(openPendingIntent)
             .build()
 
         notifySafely(context, notificationManager, upcomingNotificationId(alarmId), notification)
@@ -152,24 +162,20 @@ object NotificationHelper {
         return alarmId.hashCode() + 50_000
     }
 
-    fun showTimerNotification(
+    fun buildTimerNotification(
         context: Context,
         timerId: String,
         label: String,
         totalSeconds: Int
-    ) {
-        if (!canPostNotifications(context)) {
-            vibrate(context)
-            return
-        }
-
+    ): Notification {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureTimerChannel(notificationManager)
         val notificationId = TimerScheduler.notificationIdFor(timerId)
 
         val openIntent = Intent(context, AlarmRingActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_TIMER)
             putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
             putExtra(AlarmRingActivity.EXTRA_LABEL, label)
@@ -194,7 +200,7 @@ object NotificationHelper {
         )
 
         val title = if (label.isBlank()) "Timer finished" else label
-        val notification = NotificationCompat.Builder(context, TIMER_CHANNEL)
+        return NotificationCompat.Builder(context, TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText("Timer complete")
@@ -206,9 +212,6 @@ object NotificationHelper {
             .setContentIntent(openPendingIntent)
             .addAction(0, "Dismiss", dismissPendingIntent)
             .build()
-
-        notifySafely(context, notificationManager, notificationId, notification)
-        vibrate(context)
     }
 
     fun showStopwatchMarkNotification(context: Context, targetLabel: String) {
@@ -242,6 +245,8 @@ object NotificationHelper {
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(alarmId.hashCode())
     }
+
+    fun alarmNotificationId(alarmId: String): Int = alarmId.hashCode()
 
     fun cancelTimerNotification(context: Context, timerId: String) {
         val notificationManager =
@@ -309,11 +314,6 @@ object NotificationHelper {
             @Suppress("DEPRECATION")
             context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 500), 0))
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(longArrayOf(0, 500, 500), 0)
-        }
+        vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500), -1))
     }
 }

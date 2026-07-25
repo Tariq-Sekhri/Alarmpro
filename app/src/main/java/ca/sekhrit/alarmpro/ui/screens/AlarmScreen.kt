@@ -394,7 +394,11 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
         topBar = {
             if (selectionMode) {
                 TopAppBar(
-                    title = { Text("${selectedIds.size} selected") },
+                    title = {
+                        ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle(
+                            "${selectedIds.size} selected"
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = { exitSelectionMode() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit selection")
@@ -420,7 +424,9 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
             } else {
                 Column {
                     TopAppBar(
-                        title = { Text("Alarm Clock") },
+                        title = {
+                            ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle("Alarm Clock")
+                        },
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.background
                         ),

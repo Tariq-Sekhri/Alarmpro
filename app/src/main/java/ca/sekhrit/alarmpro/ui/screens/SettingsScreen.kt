@@ -36,7 +36,9 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = {
+                    ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle("Settings")
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),

@@ -3,12 +3,16 @@ package ca.sekhrit.alarmpro
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
-import android.speech.tts.TextToSpeech
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -36,10 +40,10 @@ import androidx.compose.ui.unit.sp
 import ca.sekhrit.alarmpro.data.AlarmRepository
 import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.data.TimerRepository
-import ca.sekhrit.alarmpro.data.timerSpeechText
 import ca.sekhrit.alarmpro.domain.AlarmActions
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
+import ca.sekhrit.alarmpro.service.AlarmRingingService
 import ca.sekhrit.alarmpro.ui.theme.AlarmProTheme
 import ca.sekhrit.alarmpro.util.AlarmSoundUtils
 import ca.sekhrit.alarmpro.util.AlarmTimeParts
@@ -52,8 +56,11 @@ import java.util.Locale
 
 class AlarmRingActivity : ComponentActivity() {
     private var mediaPlayer: MediaPlayer? = null
-    private var vibrator: android.os.Vibrator? = null
-    private var textToSpeech: TextToSpeech? = null
+    private val ringingStoppedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_RINGING_STOPPED) finish()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,35 +78,20 @@ class AlarmRingActivity : ComponentActivity() {
         val ringType = intent.getStringExtra(EXTRA_RING_TYPE) ?: TYPE_ALARM
         val alarmId = intent.getStringExtra(EXTRA_ALARM_ID).orEmpty()
         val timerId = intent.getStringExtra(EXTRA_TIMER_ID).orEmpty()
-        val timerTotalSeconds = intent.getIntExtra(EXTRA_TIMER_TOTAL_SECONDS, 0)
         val hour = intent.getIntExtra(EXTRA_HOUR, 7)
         val minute = intent.getIntExtra(EXTRA_MINUTE, 0)
         val label = intent.getStringExtra(EXTRA_LABEL).orEmpty()
-        val vibrate = intent.getBooleanExtra(EXTRA_VIBRATE, true)
-        val readLabelAloud = intent.getBooleanExtra(EXTRA_READ_LABEL_ALOUD, false)
         val snoozeAllowed = intent.getBooleanExtra(EXTRA_SNOOZE_ALLOWED, true)
         val settings = SettingsRepository(this).load()
-        val playbackUri = when (ringType) {
-            TYPE_ALARM -> {
-                val alarm = AlarmRepository(this).loadAlarms().find { it.id == alarmId }
-                AlarmSoundUtils.resolvePlaybackUri(this, alarm, settings)
-            }
-            TYPE_PREVIEW -> {
+
+        // Alarm/timer effects live in AlarmRingingService so they remain reliable
+        // when Android displays only a heads-up notification. Preview audio is
+        // intentionally activity-owned.
+        if (ringType == TYPE_PREVIEW) {
+            val previewUri =
                 intent.getStringExtra(EXTRA_SOUND_URI)?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
                     ?: AlarmSoundUtils.resolvePlaybackUri(this, null, settings)
-            }
-            else -> AlarmSoundUtils.systemDefaultUri()
-        }
-
-        startAlarmSound(playbackUri)
-        if ((vibrate && ringType != TYPE_PREVIEW) || ringType == TYPE_TIMER) {
-            startVibration()
-        }
-        if (readLabelAloud && label.isNotBlank() && ringType == TYPE_ALARM) {
-            speakText(label)
-        }
-        if (ringType == TYPE_TIMER) {
-            timerSpeechText(settings.timerSpeechFormat, label, timerTotalSeconds)?.let { speakText(it) }
+            startAlarmSound(previewUri)
         }
 
         val headline = when (ringType) {
@@ -128,6 +120,7 @@ class AlarmRingActivity : ComponentActivity() {
                         if (ringType == TYPE_ALARM) {
                             AlarmActions.snooze(this@AlarmRingActivity, alarmId)
                         }
+                        AlarmRingingService.stop(this@AlarmRingActivity)
                         finish()
                     },
                     onDismiss = {
@@ -143,6 +136,7 @@ class AlarmRingActivity : ComponentActivity() {
                                 }
                             }
                         }
+                        AlarmRingingService.stop(this@AlarmRingActivity)
                         finish()
                     }
                 )
@@ -150,13 +144,25 @@ class AlarmRingActivity : ComponentActivity() {
         }
     }
 
-    private fun speakText(text: String) {
-        textToSpeech = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                textToSpeech?.language = Locale.getDefault()
-                textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "alarmpro_speech")
-            }
-        }
+    override fun onStart() {
+        super.onStart()
+        ContextCompat.registerReceiver(
+            this,
+            ringingStoppedReceiver,
+            IntentFilter(ACTION_RINGING_STOPPED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        recreate()
+    }
+
+    override fun onStop() {
+        unregisterReceiver(ringingStoppedReceiver)
+        super.onStop()
     }
 
     private fun startAlarmSound(uri: Uri) {
@@ -174,31 +180,10 @@ class AlarmRingActivity : ComponentActivity() {
         }
     }
 
-    private fun startVibration() {
-        vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val manager = getSystemService(VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
-            manager.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            getSystemService(VIBRATOR_SERVICE) as android.os.Vibrator
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 800, 800), 0))
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(longArrayOf(0, 800, 800), 0)
-        }
-    }
-
     private fun stopEffects() {
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null
-        vibrator?.cancel()
-        vibrator = null
-        textToSpeech?.stop()
-        textToSpeech?.shutdown()
-        textToSpeech = null
     }
 
     override fun onDestroy() {
@@ -222,6 +207,14 @@ class AlarmRingActivity : ComponentActivity() {
         const val TYPE_ALARM = "alarm"
         const val TYPE_TIMER = "timer"
         const val TYPE_PREVIEW = "preview"
+        private const val ACTION_RINGING_STOPPED =
+            "ca.sekhrit.alarmpro.action.RINGING_STOPPED"
+
+        fun notifyRingingStopped(context: Context) {
+            context.sendBroadcast(
+                Intent(ACTION_RINGING_STOPPED).setPackage(context.packageName)
+            )
+        }
     }
 }
 

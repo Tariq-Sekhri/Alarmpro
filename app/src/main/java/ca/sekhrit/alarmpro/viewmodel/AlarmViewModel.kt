@@ -98,6 +98,12 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
         get() = TimeUtils.nextAlarmHeader(_alarms.value, _settings.value.use24HourFormat)
 
+    fun refreshFromStorage() {
+        _alarms.value = repository.loadAlarms()
+        _groups.value = groupRepository.loadGroups()
+        _settings.value = settingsRepository.load()
+    }
+
 
 
     private fun persistAlarms(alarms: List<Alarm>) {

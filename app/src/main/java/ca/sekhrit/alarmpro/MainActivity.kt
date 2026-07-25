@@ -5,13 +5,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.compose.LocalActivity
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -34,6 +33,8 @@ import ca.sekhrit.alarmpro.ui.theme.AlarmProTheme
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 
 class MainActivity : ComponentActivity() {
+    private val alarmViewModel: AlarmViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -42,22 +43,24 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             AlarmProTheme {
-                MainScreen()
+                MainScreen(alarmViewModel)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        alarmViewModel.refreshFromStorage()
     }
 }
 
 @Composable
-fun MainScreen() {
+fun MainScreen(alarmViewModel: AlarmViewModel) {
     RequestAppPermissions()
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = currentRoute in setOf("alarm", "timer", "stopwatch", "clock")
-    val activity = LocalActivity.current as ComponentActivity
-    val alarmViewModel: AlarmViewModel = viewModel(activity)
-
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
         bottomBar = {

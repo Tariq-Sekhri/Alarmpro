@@ -14,9 +14,19 @@ object AlarmActions {
         val repository = AlarmRepository(context)
         val scheduler = AlarmScheduler(context)
         val alarms = repository.loadAlarms()
-        val alarm = alarms.find { it.id == alarmId } ?: return
+        val alarm = alarms.find { it.id == alarmId }
+
+        if (alarm == null) {
+            scheduler.cancel(alarmId)
+            NotificationHelper.cancelAlarmNotification(context, alarmId)
+            NotificationHelper.cancelUpcomingNotification(context, alarmId)
+            return
+        }
+
+        scheduler.cancelSnooze(alarmId)
 
         if (alarm.repeat.type == RepeatType.ONCE) {
+            scheduler.cancel(alarmId)
             repository.saveAlarms(
                 alarms.map { if (it.id == alarmId) it.copy(isEnabled = false, skipUntilEpochDay = null) else it }
             )
@@ -40,8 +50,13 @@ object AlarmActions {
     fun snooze(context: Context, alarmId: String) {
         val repository = AlarmRepository(context)
         val settings = SettingsRepository(context).load()
-        val alarm = repository.loadAlarms().find { it.id == alarmId } ?: return
-        if (!alarm.isSnoozeAllowed(settings)) return
+        val alarm = repository.loadAlarms().find { it.id == alarmId }
+        if (alarm == null || !alarm.isEnabled || !alarm.isSnoozeAllowed(settings)) {
+            AlarmScheduler(context).cancelSnooze(alarmId)
+            NotificationHelper.cancelAlarmNotification(context, alarmId)
+            return
+        }
+        AlarmScheduler(context).cancelRegular(alarmId)
         AlarmScheduler(context).scheduleSnooze(alarm, alarm.resolveSnoozeMinutes(settings))
         NotificationHelper.cancelAlarmNotification(context, alarmId)
         NotificationHelper.cancelUpcomingNotification(context, alarmId)

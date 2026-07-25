@@ -193,7 +193,11 @@ fun AlarmEditScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(if (existing == null) "Create Alarm" else "Edit Alarm") },
+                title = {
+                    ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle(
+                        if (existing == null) "Create Alarm" else "Edit Alarm"
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
