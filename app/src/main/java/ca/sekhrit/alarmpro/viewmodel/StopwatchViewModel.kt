@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.lang.ref.WeakReference
+import java.util.concurrent.ConcurrentHashMap
 
 data class LapEntry(
     val number: Int,
@@ -42,13 +44,19 @@ data class StopwatchUiState(
 )
 
 class StopwatchViewModel(application: Application) : AndroidViewModel(application) {
+    val stopwatchId: String = UUID.randomUUID().toString()
     private var startElapsedRealtime = 0L
     private var accumulatedMs = 0L
     private var lastLapTotalMs = 0L
+    private var lastNotificationSecond = -1L
     private var tickJob: Job? = null
 
     private val _state = MutableStateFlow(StopwatchUiState())
     val state: StateFlow<StopwatchUiState> = _state.asStateFlow()
+
+    init {
+        instances[stopwatchId] = WeakReference(this)
+    }
 
     private fun currentElapsedMs(): Long {
         return if (_state.value.isRunning) {
@@ -62,6 +70,11 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
         if (!_state.value.isRunning) return
         val elapsed = currentElapsedMs()
         _state.value = _state.value.copy(elapsedMs = elapsed)
+        val elapsedSecond = elapsed / 1000L
+        if (elapsedSecond != lastNotificationSecond) {
+            lastNotificationSecond = elapsedSecond
+            NotificationHelper.showActiveStopwatchNotification(getApplication(), stopwatchId, elapsed)
+        }
         checkMarks(elapsed)
     }
 
@@ -89,9 +102,13 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
             tickJob?.cancel()
             tickJob = null
             _state.value = _state.value.copy(isRunning = false, elapsedMs = accumulatedMs)
+            lastNotificationSecond = -1L
+            NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
         } else {
             startElapsedRealtime = SystemClock.elapsedRealtime()
+            lastNotificationSecond = accumulatedMs / 1000L
             _state.value = _state.value.copy(isRunning = true)
+            NotificationHelper.showActiveStopwatchNotification(getApplication(), stopwatchId, accumulatedMs)
             tickJob?.cancel()
             tickJob = viewModelScope.launch {
                 while (true) {
@@ -100,6 +117,10 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
         }
+    }
+
+    fun stop() {
+        if (_state.value.isRunning) startPause()
     }
 
     fun lap() {
@@ -113,6 +134,7 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
             elapsedMs = total,
             laps = listOf(entry) + _state.value.laps
         )
+        NotificationHelper.showActiveStopwatchNotification(getApplication(), stopwatchId, total)
     }
 
     fun addMark(totalMinutes: Int) {
@@ -156,6 +178,7 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
         startElapsedRealtime = 0L
         accumulatedMs = 0L
         lastLapTotalMs = 0L
+        lastNotificationSecond = -1L
         _state.value = _state.value.copy(
             elapsedMs = 0L,
             isRunning = false,
@@ -163,10 +186,19 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
             marks = _state.value.marks.map { it.copy(triggered = false) },
             alertEvent = null
         )
+        NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
     }
 
     override fun onCleared() {
         tickJob?.cancel()
+        instances.remove(stopwatchId)
+        NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
         super.onCleared()
+    }
+
+    companion object {
+        private val instances = ConcurrentHashMap<String, WeakReference<StopwatchViewModel>>()
+
+        fun instance(id: String): StopwatchViewModel? = instances[id]?.get()
     }
 }

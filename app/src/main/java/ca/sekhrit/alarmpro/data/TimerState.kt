@@ -12,11 +12,11 @@ data class TimerState(
     val label: String = ""
 ) {
     fun liveRemainingSeconds(nowMillis: Long = System.currentTimeMillis()): Int {
-        if (endTimeMillis <= 0L) return remainingSeconds.coerceAtLeast(0)
+        if (!isRunning || endTimeMillis <= 0L) return remainingSeconds.coerceAtLeast(0)
         return ((endTimeMillis - nowMillis) / 1000L).toInt().coerceAtLeast(0)
     }
 
     fun isActive(nowMillis: Long = System.currentTimeMillis()): Boolean {
-        return endTimeMillis > nowMillis
+        return isRunning && endTimeMillis > nowMillis
     }
 }

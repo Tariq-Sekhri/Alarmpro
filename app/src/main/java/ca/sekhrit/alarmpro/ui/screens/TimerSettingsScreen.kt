@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.TimerSpeechFormat
+import ca.sekhrit.alarmpro.data.TimerControlStyle
 import ca.sekhrit.alarmpro.ui.components.SettingsCategoryHeader
 import ca.sekhrit.alarmpro.ui.components.SettingsOptionDialog
 import ca.sekhrit.alarmpro.ui.components.SettingsSwitchRow
@@ -38,8 +39,11 @@ fun TimerSettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsState()
     var showSpeechDialog by remember { mutableStateOf(false) }
+    var showControlDialog by remember { mutableStateOf(false) }
     val speechOptions = remember { TimerSpeechFormat.entries.map { it.label } }
     val speechSelectedIndex = TimerSpeechFormat.entries.indexOf(settings.timerSpeechFormat)
+    val controlOptions = remember { TimerControlStyle.entries.map { it.label } }
+    val controlSelectedIndex = TimerControlStyle.entries.indexOf(settings.timerControlStyle)
 
     if (showSpeechDialog) {
         SettingsOptionDialog(
@@ -52,6 +56,21 @@ fun TimerSettingsScreen(
                     settings.copy(timerSpeechFormat = TimerSpeechFormat.entries[index])
                 )
                 showSpeechDialog = false
+            }
+        )
+    }
+
+    if (showControlDialog) {
+        SettingsOptionDialog(
+            title = "Timer control",
+            options = controlOptions,
+            selectedIndex = controlSelectedIndex,
+            onDismiss = { showControlDialog = false },
+            onSelect = { index ->
+                viewModel.updateSettings(
+                    settings.copy(timerControlStyle = TimerControlStyle.entries[index])
+                )
+                showControlDialog = false
             }
         )
     }
@@ -85,6 +104,11 @@ fun TimerSettingsScreen(
                 title = "Timer speech format",
                 value = settings.timerSpeechFormat.label,
                 onClick = { showSpeechDialog = true }
+            )
+            SettingsValueRow(
+                title = "Timer control",
+                value = settings.timerControlStyle.label,
+                onClick = { showControlDialog = true }
             )
             SettingsSwitchRow(
                 title = "Gradually increase volume",

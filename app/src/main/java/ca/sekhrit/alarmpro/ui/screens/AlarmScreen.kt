@@ -293,6 +293,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                     onClick = {
                                         viewModel.assignAlarmsToGroup(selectedIds, group.id)
                                         showGroupDialog = false
+                                        exitSelectionMode()
                                     },
                                     label = { Text(group.label) }
                                 )
@@ -319,6 +320,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                     onClick = {
                         viewModel.groupAlarms(selectedIds, groupDialogName)
                         showGroupDialog = false
+                        exitSelectionMode()
                     },
                     enabled = groupDialogName.isNotBlank() && selectedIds.isNotEmpty()
                 ) {
@@ -348,8 +350,8 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                     onClick = {
                         val idsToDelete = selectedIds
                         viewModel.deleteAlarms(idsToDelete)
-                        selectedIds = selectedIds - idsToDelete
                         showDeleteConfirm = false
+                        exitSelectionMode()
                     }
                 ) {
                     Text("Delete")
@@ -522,9 +524,18 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
             if (selectionMode && selectedIds.isNotEmpty()) {
                 SelectionBottomBar(
                     onDelete = { showDeleteConfirm = true },
-                    onEnable = { viewModel.setAlarmsEnabled(selectedIds, enabled = true) },
-                    onDisable = { viewModel.setAlarmsEnabled(selectedIds, enabled = false) },
-                    onSkipNext = { viewModel.skipNextAlarms(selectedIds) },
+                    onEnable = { 
+                        viewModel.setAlarmsEnabled(selectedIds, enabled = true)
+                        exitSelectionMode()
+                    },
+                    onDisable = { 
+                        viewModel.setAlarmsEnabled(selectedIds, enabled = false)
+                        exitSelectionMode()
+                    },
+                    onSkipNext = { 
+                        viewModel.skipNextAlarms(selectedIds)
+                        exitSelectionMode()
+                    },
                     onGroup = {
                         groupDialogName = "groupLabel ${groups.size + 1}"
                         showGroupDialog = true

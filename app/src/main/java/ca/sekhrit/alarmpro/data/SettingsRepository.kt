@@ -19,6 +19,11 @@ class SettingsRepository(context: Context) {
                 TimePickerStyle.valueOf(prefs.getString(KEY_TIME_PICKER_STYLE, TimePickerStyle.ANALOG.name) ?: TimePickerStyle.ANALOG.name)
             } catch (e: Exception) {
                 TimePickerStyle.ANALOG
+            },
+            timerControlStyle = try {
+                TimerControlStyle.valueOf(prefs.getString(KEY_TIMER_CONTROL_STYLE, TimerControlStyle.SWITCH.name) ?: TimerControlStyle.SWITCH.name)
+            } catch (e: Exception) {
+                TimerControlStyle.SWITCH
             }
         )
     }
@@ -34,6 +39,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_TIMER_SPEECH, settings.timerSpeechFormat.name)
             .putInt(KEY_UPCOMING_ALARM_LEAD, settings.upcomingAlarmLeadMinutes)
             .putString(KEY_TIME_PICKER_STYLE, settings.timePickerStyle.name)
+            .putString(KEY_TIMER_CONTROL_STYLE, settings.timerControlStyle.name)
             .apply()
     }
 
@@ -48,6 +54,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_TIMER_SPEECH = "timer_speech_format"
         private const val KEY_UPCOMING_ALARM_LEAD = "upcoming_alarm_lead_minutes"
         private const val KEY_TIME_PICKER_STYLE = "time_picker_style"
+        private const val KEY_TIMER_CONTROL_STYLE = "timer_control_style"
         private const val KEY_LEGACY_SNOOZE = "snooze_minutes"
         private const val KEY_LEGACY_VIBRATION = "vibration_enabled"
     }

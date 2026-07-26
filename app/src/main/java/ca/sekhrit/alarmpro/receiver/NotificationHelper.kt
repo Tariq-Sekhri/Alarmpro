@@ -17,6 +17,8 @@ import androidx.core.content.ContextCompat
 import ca.sekhrit.alarmpro.AlarmRingActivity
 import ca.sekhrit.alarmpro.MainActivity
 import ca.sekhrit.alarmpro.R
+import ca.sekhrit.alarmpro.data.TimerState
+import ca.sekhrit.alarmpro.util.TimeUtils
 
 object NotificationHelper {
     // Ringing is handled by AlarmRingActivity so the selected sound is the only sound.
@@ -24,7 +26,9 @@ object NotificationHelper {
     private const val ALARM_CHANNEL = "alarm_channel_v2"
     private const val UPCOMING_CHANNEL = "upcoming_alarm_channel"
     private const val TIMER_CHANNEL = "timer_channel_v2"
+    private const val ACTIVE_TIMER_CHANNEL = "active_timer_channel_v1"
     private const val STOPWATCH_MARK_NOTIFICATION_ID = 9002
+    private const val STOPWATCH_NOTIFICATION_ID = 9003
 
     fun canPostNotifications(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
@@ -131,6 +135,7 @@ object NotificationHelper {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
+            putExtra(MainActivity.EXTRA_TARGET_TAB, "alarm")
         }
         val openPendingIntent = PendingIntent.getActivity(
             context,
@@ -214,6 +219,44 @@ object NotificationHelper {
             .build()
     }
 
+    fun showActiveTimerNotification(context: Context, timer: TimerState) {
+        if (!timer.isActive() || !canPostNotifications(context)) return
+
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        ensureActiveTimerChannel(notificationManager)
+        val notificationId = TimerScheduler.notificationIdFor(timer.id)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(MainActivity.EXTRA_TARGET_TAB, "timer")
+        }
+        val openPendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val title = if (timer.label.isBlank()) "Timer running" else timer.label
+        val notification = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(TimeUtils.formatDuration(timer.liveRemainingSeconds().toLong()))
+            .setWhen(timer.endTimeMillis)
+            .setShowWhen(true)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
+            .setOngoing(false)
+            .setContentIntent(openPendingIntent)
+            .build()
+
+        notifySafely(context, notificationManager, notificationId, notification)
+    }
+
     fun showStopwatchMarkNotification(context: Context, targetLabel: String) {
         vibrate(context)
         if (!canPostNotifications(context)) return
@@ -233,6 +276,73 @@ object NotificationHelper {
 
         notifySafely(context, notificationManager, STOPWATCH_MARK_NOTIFICATION_ID, notification)
     }
+
+    fun showActiveStopwatchNotification(context: Context, stopwatchId: String, elapsedMs: Long) {
+        if (!canPostNotifications(context)) return
+
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        ensureActiveTimerChannel(notificationManager)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(MainActivity.EXTRA_TARGET_TAB, "stopwatch")
+        }
+        val notificationId = stopwatchNotificationId(stopwatchId)
+        val openPendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val lapIntent = Intent(context, StopwatchActionReceiver::class.java).apply {
+            action = StopwatchActionReceiver.ACTION_ADD_LAP
+            putExtra(StopwatchActionReceiver.EXTRA_STOPWATCH_ID, stopwatchId)
+        }
+        val lapPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 1,
+            lapIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val stopIntent = Intent(context, StopwatchActionReceiver::class.java).apply {
+            action = StopwatchActionReceiver.ACTION_STOP
+            putExtra(StopwatchActionReceiver.EXTRA_STOPWATCH_ID, stopwatchId)
+        }
+        val stopPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 2,
+            stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Stopwatch")
+            .setContentText(TimeUtils.formatDuration(elapsedMs / 1000))
+            .setWhen(System.currentTimeMillis() - elapsedMs)
+            .setShowWhen(true)
+            .setUsesChronometer(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
+            .setOngoing(false)
+            .setContentIntent(openPendingIntent)
+            .addAction(0, "Add lap", lapPendingIntent)
+            .addAction(0, "Stop", stopPendingIntent)
+            .build()
+
+        notifySafely(context, notificationManager, notificationId, notification)
+    }
+
+    fun cancelActiveStopwatchNotification(context: Context, stopwatchId: String) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(stopwatchNotificationId(stopwatchId))
+    }
+
+    private fun stopwatchNotificationId(stopwatchId: String): Int =
+        STOPWATCH_NOTIFICATION_ID + (stopwatchId.hashCode() and 0xFFFF)
 
     fun cancelStopwatchMarkNotification(context: Context) {
         val notificationManager =
@@ -302,6 +412,20 @@ object NotificationHelper {
             description = "Timer and stopwatch notifications"
             enableVibration(true)
             setSound(null, null)
+        }
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    private fun ensureActiveTimerChannel(notificationManager: NotificationManager) {
+        val channel = NotificationChannel(
+            ACTIVE_TIMER_CHANNEL,
+            "Active timers",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Quiet live countdown and stopwatch notifications"
+            enableVibration(false)
+            setSound(null, null)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         }
         notificationManager.createNotificationChannel(channel)
     }

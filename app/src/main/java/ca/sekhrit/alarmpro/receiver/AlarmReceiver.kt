@@ -122,6 +122,7 @@ class AlarmReceiver : BroadcastReceiver() {
         }
         val label = timer.label
         val totalSeconds = timer.totalSeconds
+        NotificationHelper.cancelTimerNotification(context, timerId)
         TimerRepository(context).removeTimer(timerId)
         AlarmRingingService.startTimer(context, timerId, label, totalSeconds)
     }

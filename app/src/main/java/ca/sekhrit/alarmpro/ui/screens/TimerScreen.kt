@@ -27,6 +27,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TimerOff
@@ -77,11 +79,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.TimerPreset
+import ca.sekhrit.alarmpro.data.TimerControlStyle
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.ui.theme.ElevatedSurface
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
+import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
@@ -89,11 +93,13 @@ import kotlinx.coroutines.launch
 @Composable
 fun TimerScreen(
     onOpenSettings: () -> Unit,
-    viewModel: TimerViewModel = viewModel()
+    viewModel: TimerViewModel = viewModel(),
+    settingsViewModel: AlarmViewModel = viewModel()
 ) {
     val activeTimers by viewModel.activeTimers.collectAsState()
     val presets by viewModel.presets.collectAsState()
     val clockMillis by viewModel.clockMillis.collectAsState()
+    val settings by settingsViewModel.settings.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editPreset by remember { mutableStateOf<TimerPreset?>(null) }
     var selectionMode by remember { mutableStateOf(false) }
@@ -236,10 +242,7 @@ fun TimerScreen(
             items(presets, key = { it.id }) { preset ->
                 val timer = activeTimers[preset.id]
                 val isRunningPreset = timer != null && timer.isActive(clockMillis)
-                val remainingSeconds = timer
-                    ?.takeIf { it.isActive(clockMillis) }
-                    ?.liveRemainingSeconds(clockMillis)
-                    ?: preset.totalSeconds
+                val remainingSeconds = timer?.liveRemainingSeconds(clockMillis) ?: preset.totalSeconds
                 TimerPresetCard(
                     preset = preset,
                     isRunning = isRunningPreset,
@@ -251,6 +254,7 @@ fun TimerScreen(
                     },
                     onRestart = { viewModel.restartPreset(preset) },
                     onToggle = { enabled -> viewModel.togglePreset(preset, enabled) },
+                    usePlayPauseButton = settings.timerControlStyle == TimerControlStyle.PLAY_PAUSE_BUTTON,
                     onEdit = { editPreset = preset },
                     onDelete = { viewModel.deletePreset(preset) },
                     selectionMode = selectionMode,
@@ -272,6 +276,7 @@ private fun TimerPresetCard(
     progress: Float,
     onRestart: () -> Unit,
     onToggle: (Boolean) -> Unit,
+    usePlayPauseButton: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     selectionMode: Boolean,
@@ -334,14 +339,24 @@ private fun TimerPresetCard(
             }
 
             if (!selectionMode) {
-                Switch(
-                    checked = isRunning,
-                    onCheckedChange = onToggle,
-                    colors = SwitchDefaults.colors(
-                        checkedTrackColor = ElectricCyan.copy(alpha = 0.4f),
-                        checkedThumbColor = ElectricCyan
+                if (usePlayPauseButton) {
+                    IconButton(onClick = { onToggle(!isRunning) }) {
+                        Icon(
+                            imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isRunning) "Pause timer" else "Start timer",
+                            tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Switch(
+                        checked = isRunning,
+                        onCheckedChange = onToggle,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = ElectricCyan.copy(alpha = 0.4f),
+                            checkedThumbColor = ElectricCyan
+                        )
                     )
-                )
+                }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete timer")
                 }

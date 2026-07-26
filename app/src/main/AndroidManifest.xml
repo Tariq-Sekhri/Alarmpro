@@ -28,6 +28,11 @@
             android:exported="false" />
 
         <receiver
+            android:name=".receiver.StopwatchActionReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
             android:name=".receiver.BootReceiver"
             android:enabled="true"
             android:exported="false">

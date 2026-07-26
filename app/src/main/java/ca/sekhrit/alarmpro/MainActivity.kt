@@ -10,7 +10,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import kotlinx.coroutines.launch
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -32,8 +37,15 @@ import ca.sekhrit.alarmpro.ui.screens.TimerSettingsScreen
 import ca.sekhrit.alarmpro.ui.theme.AlarmProTheme
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
+import android.content.Intent
+import androidx.compose.runtime.LaunchedEffect
+
 class MainActivity : ComponentActivity() {
     private val alarmViewModel: AlarmViewModel by viewModels()
+    private val intentFlow = MutableSharedFlow<Intent>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,55 +53,93 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
+        
+        intent?.let { intentFlow.tryEmit(it) }
+
         setContent {
             AlarmProTheme {
-                MainScreen(alarmViewModel)
+                MainScreen(alarmViewModel, intentFlow)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intentFlow.tryEmit(intent)
     }
 
     override fun onResume() {
         super.onResume()
         alarmViewModel.refreshFromStorage()
     }
+
+    companion object {
+        const val EXTRA_TARGET_TAB = "extra_target_tab"
+    }
 }
 
 @Composable
-fun MainScreen(alarmViewModel: AlarmViewModel) {
+fun MainScreen(alarmViewModel: AlarmViewModel, intentFlow: SharedFlow<Intent>) {
     RequestAppPermissions()
     val navController = rememberNavController()
+    
+    val tabs = listOf("alarm", "timer", "stopwatch", "clock")
+    val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val coroutineScope = rememberCoroutineScope()
+    
+    LaunchedEffect(intentFlow) {
+        intentFlow.collect { intent ->
+            val targetTab = intent.getStringExtra(MainActivity.EXTRA_TARGET_TAB)
+            if (targetTab != null) {
+                val index = tabs.indexOf(targetTab)
+                if (index >= 0) {
+                    if (navController.currentDestination?.route != "home") {
+                        navController.popBackStack("home", inclusive = false)
+                    }
+                    pagerState.animateScrollToPage(index)
+                }
+            }
+        }
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-    val showBottomBar = currentRoute in setOf("alarm", "timer", "stopwatch", "clock")
+    val currentRoute = navBackStackEntry?.destination?.route ?: "home"
+    val showBottomBar = currentRoute == "home"
+    
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
         bottomBar = {
             if (showBottomBar) {
-                AppBottomBar(navController)
+                AppBottomBar(
+                    selectedTabIndex = pagerState.currentPage,
+                    onTabSelected = { index ->
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(index)
+                        }
+                    }
+                )
             }
         }
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "alarm",
+            startDestination = "home",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("alarm") {
-                AlarmScreen(
-                    onOpenSettings = { navController.navigate("settings") },
-                    onCreateAlarm = { navController.navigate("alarm/edit") },
-                    onEditAlarm = { alarmId -> navController.navigate("alarm/edit/$alarmId") },
-                    viewModel = alarmViewModel
-                )
-            }
-            composable("timer") {
-                TimerScreen(onOpenSettings = { navController.navigate("settings") })
-            }
-            composable("stopwatch") {
-                StopwatchScreen(onOpenSettings = { navController.navigate("settings") })
-            }
-            composable("clock") {
-                ClockScreen(onOpenSettings = { navController.navigate("settings") }, viewModel = alarmViewModel)
+            composable("home") {
+                HorizontalPager(state = pagerState) { page ->
+                    when (page) {
+                        0 -> AlarmScreen(
+                            onOpenSettings = { navController.navigate("settings") },
+                            onCreateAlarm = { navController.navigate("alarm/edit") },
+                            onEditAlarm = { alarmId -> navController.navigate("alarm/edit/$alarmId") },
+                            viewModel = alarmViewModel
+                        )
+                        1 -> TimerScreen(onOpenSettings = { navController.navigate("settings") })
+                        2 -> StopwatchScreen(onOpenSettings = { navController.navigate("settings") })
+                        3 -> ClockScreen(onOpenSettings = { navController.navigate("settings") }, viewModel = alarmViewModel)
+                    }
+                }
             }
             composable("alarm/edit") {
                 AlarmEditScreen(

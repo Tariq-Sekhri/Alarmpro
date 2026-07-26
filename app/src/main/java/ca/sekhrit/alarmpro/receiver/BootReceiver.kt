@@ -34,6 +34,7 @@ class BootReceiver : BroadcastReceiver() {
         }
         stillRunning.forEach { timer ->
             timerScheduler.schedule(timer.id, timer.endTimeMillis, timer.label, timer.totalSeconds)
+            NotificationHelper.showActiveTimerNotification(context, timer)
         }
     }
 }

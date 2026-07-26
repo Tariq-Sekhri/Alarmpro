@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Spacer
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.ui.text.font.FontWeight
@@ -62,7 +64,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.util.TimeUtils
@@ -74,9 +76,12 @@ import ca.sekhrit.alarmpro.viewmodel.StopwatchViewModel
 @Composable
 fun StopwatchScreen(
     onOpenSettings: () -> Unit = {},
-    viewModel: StopwatchViewModel = viewModel()
+    viewModel: StopwatchViewModel? = null
 ) {
-    val state by viewModel.state.collectAsState()
+    var stopwatchIds by remember { mutableStateOf(listOf("default")) }
+    var selectedStopwatchId by remember { mutableStateOf("default") }
+    val selectedViewModel = viewModel ?: composeViewModel<StopwatchViewModel>(key = selectedStopwatchId)
+    val state by selectedViewModel.state.collectAsState()
     val bestLapMs = state.laps.minOfOrNull { it.lapTimeMs }
     val context = LocalContext.current
     var showCustomDialog by remember { mutableStateOf(false) }
@@ -96,14 +101,14 @@ fun StopwatchScreen(
         AlertDialog(
             onDismissRequest = {
                 NotificationHelper.cancelStopwatchMarkNotification(context)
-                viewModel.acknowledgeAlert()
+                selectedViewModel.acknowledgeAlert()
             },
             title = { Text("Stopwatch alert") },
             text = { Text("Reached ${event.label}") },
             confirmButton = {
                 TextButton(onClick = {
                     NotificationHelper.cancelStopwatchMarkNotification(context)
-                    viewModel.acknowledgeAlert()
+                    selectedViewModel.acknowledgeAlert()
                 }) {
                     Text("OK")
                 }
@@ -115,7 +120,7 @@ fun StopwatchScreen(
         CustomMarkDialog(
             onDismiss = { showCustomDialog = false },
             onAdd = { hours, minutes, seconds ->
-                viewModel.addCustomMark(hours, minutes, seconds)
+                selectedViewModel.addCustomMark(hours, minutes, seconds)
                 showCustomDialog = false
             }
         )
@@ -147,6 +152,59 @@ fun StopwatchScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            stopwatchIds.forEachIndexed { index, id ->
+                FilterChip(
+                    modifier = Modifier.height(64.dp),
+                    selected = id == selectedStopwatchId,
+                    onClick = { selectedStopwatchId = id },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Stopwatch ${index + 1}",
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            if (stopwatchIds.size > 1) {
+                                IconButton(
+                                    onClick = {
+                                        val remaining = stopwatchIds - id
+                                        stopwatchIds = remaining
+                                        if (selectedStopwatchId == id) {
+                                            selectedStopwatchId = remaining.first()
+                                        }
+                                    },
+                                    modifier = Modifier.width(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Remove stopwatch ${index + 1}"
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.width(24.dp))
+                            }
+                        }
+                    }
+                )
+            }
+            IconButton(
+                onClick = {
+                    val id = "stopwatch-${stopwatchIds.size + 1}"
+                    stopwatchIds = stopwatchIds + id
+                    selectedStopwatchId = id
+                }
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add stopwatch")
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -172,7 +230,7 @@ fun StopwatchScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
-                        onClick = { viewModel.startPause() },
+                        onClick = { selectedViewModel.startPause() },
                         modifier = Modifier
                             .clip(CircleShape)
                             .background(ElevatedSurface)
@@ -184,7 +242,7 @@ fun StopwatchScreen(
                     }
                     Spacer(modifier = Modifier.padding(horizontal = 16.dp))
                     IconButton(
-                        onClick = { viewModel.reset() },
+                        onClick = { selectedViewModel.reset() },
                         modifier = Modifier
                             .clip(CircleShape)
                             .background(ElevatedSurface)
@@ -194,7 +252,7 @@ fun StopwatchScreen(
                 }
 
                 FilledTonalButton(
-                    onClick = { viewModel.lap() },
+                    onClick = { selectedViewModel.lap() },
                     enabled = state.isRunning,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -269,10 +327,10 @@ fun StopwatchScreen(
                         onClick = {
                             if (state.marks.any { it.targetMs == minutes * 60_000L }) {
                                 state.marks.find { it.targetMs == minutes * 60_000L }?.let {
-                                    viewModel.removeMark(it.id)
+                                    selectedViewModel.removeMark(it.id)
                                 }
                             } else {
-                                viewModel.addMark(minutes)
+                                selectedViewModel.addMark(minutes)
                             }
                         },
                         label = { Text(label) }
@@ -289,7 +347,7 @@ fun StopwatchScreen(
                 MarkRow(
                     mark = mark,
                     elapsedMs = state.elapsedMs,
-                    onRemove = { viewModel.removeMark(mark.id) }
+                    onRemove = { selectedViewModel.removeMark(mark.id) }
                 )
             }
         }

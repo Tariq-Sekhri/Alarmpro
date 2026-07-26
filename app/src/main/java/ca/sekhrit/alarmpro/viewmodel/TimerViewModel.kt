@@ -8,6 +8,7 @@ import ca.sekhrit.alarmpro.data.TimerPresetRepository
 import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.data.TimerState
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
+import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     val clockMillis: StateFlow<Long> = _clockMillis.asStateFlow()
 
     private var tickerJob: Job? = null
+    private val notificationSeconds = mutableMapOf<String, Int>()
 
     init {
         syncFromStorage()
@@ -79,15 +81,45 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         )
         scheduler.schedule(newState.id, endTime, newState.label, preset.totalSeconds)
         updateActiveTimer(preset.id, newState)
+        NotificationHelper.showActiveTimerNotification(getApplication(), newState)
+        notificationSeconds[preset.id] = newState.remainingSeconds
         ensureTicker()
     }
 
     fun togglePreset(preset: TimerPreset, enabled: Boolean) {
         if (enabled) {
-            startPreset(preset)
+            resumePreset(preset)
         } else {
-            stopPreset(preset)
+            pausePreset(preset)
         }
+    }
+
+    fun pausePreset(preset: TimerPreset) {
+        val current = _activeTimers.value[preset.id] ?: return
+        val remainingSeconds = current.liveRemainingSeconds()
+        scheduler.cancel(current.id)
+        NotificationHelper.cancelTimerNotification(getApplication(), current.id)
+        notificationSeconds.remove(preset.id)
+        updateActiveTimer(
+            preset.id,
+            current.copy(remainingSeconds = remainingSeconds, endTimeMillis = 0L, isRunning = false)
+        )
+        ensureTicker()
+    }
+
+    fun resumePreset(preset: TimerPreset) {
+        val current = _activeTimers.value[preset.id]
+        if (current == null || current.remainingSeconds <= 0) {
+            startPreset(preset)
+            return
+        }
+        val endTime = System.currentTimeMillis() + current.remainingSeconds * 1000L
+        val resumed = current.copy(endTimeMillis = endTime, isRunning = true)
+        scheduler.schedule(resumed.id, endTime, resumed.label, resumed.totalSeconds)
+        updateActiveTimer(preset.id, resumed)
+        NotificationHelper.showActiveTimerNotification(getApplication(), resumed)
+        notificationSeconds[preset.id] = resumed.remainingSeconds
+        ensureTicker()
     }
 
     fun restartPreset(preset: TimerPreset) {
@@ -110,14 +142,16 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         presetRepository.savePresets(updated)
 
         val active = _activeTimers.value[preset.id] ?: return
-        if (!active.isActive()) return
+        if (!active.isActive() && active.isRunning) return
         if (totalSeconds != preset.totalSeconds) {
             startPreset(updatedPreset)
             return
         }
         val displayLabel = trimmed.ifBlank { formatPresetLabel(totalSeconds) }
-        scheduler.cancel(active.id)
-        scheduler.schedule(active.id, active.endTimeMillis, displayLabel, totalSeconds)
+        if (active.isActive()) {
+            scheduler.cancel(active.id)
+            scheduler.schedule(active.id, active.endTimeMillis, displayLabel, totalSeconds)
+        }
         updateActiveTimer(preset.id, active.copy(label = displayLabel))
     }
 
@@ -139,6 +173,8 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     fun stopPreset(preset: TimerPreset, persist: Boolean = true) {
         val current = _activeTimers.value[preset.id] ?: return
         scheduler.cancel(current.id)
+        NotificationHelper.cancelTimerNotification(getApplication(), current.id)
+        notificationSeconds.remove(preset.id)
         val updated = _activeTimers.value.toMutableMap()
         updated.remove(preset.id)
         _activeTimers.value = updated
@@ -175,6 +211,12 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         if (current.isEmpty()) return
 
         val refreshed = current.mapValues { (_, state) -> refreshState(state, now) }.toMutableMap()
+        refreshed.forEach { (key, state) ->
+            if (state.isActive(now) && notificationSeconds[key] != state.remainingSeconds) {
+                notificationSeconds[key] = state.remainingSeconds
+                NotificationHelper.showActiveTimerNotification(getApplication(), state)
+            }
+        }
         val finishedEntries = refreshed.filter { (_, state) ->
             state.totalSeconds > 0 && state.endTimeMillis > 0L && !state.isActive(now)
         }
@@ -186,7 +228,9 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        finishedEntries.forEach { (key, _) ->
+        finishedEntries.forEach { (key, state) ->
+            NotificationHelper.cancelTimerNotification(getApplication(), state.id)
+            notificationSeconds.remove(key)
             refreshed.remove(key)
         }
         _activeTimers.value = refreshed
@@ -220,8 +264,8 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun refreshState(state: TimerState, now: Long = System.currentTimeMillis()): TimerState {
-        if (state.endTimeMillis <= 0L) {
-            return state.copy(isRunning = false, remainingSeconds = 0)
+        if (!state.isRunning || state.endTimeMillis <= 0L) {
+            return state.copy(isRunning = false, endTimeMillis = 0L)
         }
         val remaining = state.liveRemainingSeconds(now)
         return if (remaining <= 0) {
