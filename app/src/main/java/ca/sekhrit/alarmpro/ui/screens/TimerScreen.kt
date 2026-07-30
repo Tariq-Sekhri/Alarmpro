@@ -462,11 +462,11 @@ private fun TimerPresetDialog(
                     )
                 }
 
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 19.dp, end = 19.dp, top = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
                         text = "Label:",
@@ -496,8 +496,7 @@ private fun TimerPresetDialog(
                             }
                         },
                         modifier = Modifier
-                            .width(64.dp)
-                            .padding(start = 8.dp)
+                            .fillMaxWidth()
                     )
                 }
 
