@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import ca.sekhrit.alarmpro.AlarmRingActivity
 import ca.sekhrit.alarmpro.MainActivity
 import ca.sekhrit.alarmpro.R
+import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.data.TimerState
 import ca.sekhrit.alarmpro.util.TimeUtils
 
@@ -92,6 +93,7 @@ object NotificationHelper {
         )
 
         val title = if (label.isBlank()) "Alarm" else label
+        val silent = SettingsRepository(context).load().silentNotifications
         val builder = NotificationCompat.Builder(context, ALARM_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
@@ -102,6 +104,7 @@ object NotificationHelper {
             .setOngoing(true)
             .setFullScreenIntent(ringPendingIntent, true)
             .setContentIntent(ringPendingIntent)
+            .setSilent(silent)
             .addAction(0, "Dismiss", dismissPendingIntent)
 
         if (snoozeAllowed) {
@@ -144,6 +147,7 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val silent = SettingsRepository(context).load().silentNotifications
         val notification = NotificationCompat.Builder(context, UPCOMING_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
@@ -152,6 +156,7 @@ object NotificationHelper {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setContentIntent(openPendingIntent)
+            .setSilent(silent)
             .build()
 
         notifySafely(context, notificationManager, upcomingNotificationId(alarmId), notification)
@@ -205,6 +210,7 @@ object NotificationHelper {
         )
 
         val title = if (label.isBlank()) "Timer finished" else label
+        val silent = SettingsRepository(context).load().silentNotifications
         return NotificationCompat.Builder(context, TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
@@ -215,6 +221,7 @@ object NotificationHelper {
             .setOngoing(true)
             .setFullScreenIntent(openPendingIntent, true)
             .setContentIntent(openPendingIntent)
+            .setSilent(silent)
             .addAction(0, "Dismiss", dismissPendingIntent)
             .build()
     }
@@ -238,7 +245,8 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val title = if (timer.label.isBlank()) "Timer running" else timer.label
-        val notification = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
+        val silent = SettingsRepository(context).load().silentNotifications
+        val builder = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(TimeUtils.formatDuration(timer.liveRemainingSeconds().toLong()))
@@ -250,9 +258,21 @@ object NotificationHelper {
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
-            .setOngoing(false)
             .setContentIntent(openPendingIntent)
-            .build()
+            .setSilent(silent)
+
+        if (LiveUpdateCompatibility.shouldRequestPromotion(Build.VERSION.SDK_INT)) {
+            // Android 16 may surface this as a status-bar chip (for example, OxygenOS Live Alerts).
+            // The system and user settings decide whether the request is promoted.
+            builder
+                .setOngoing(true)
+                .setRequestPromotedOngoing(true)
+        } else {
+            // Preserve the existing, dismissible notification behavior on Android 15 and lower.
+            builder.setOngoing(false)
+        }
+
+        val notification = builder.build()
 
         notifySafely(context, notificationManager, notificationId, notification)
     }
@@ -265,6 +285,7 @@ object NotificationHelper {
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureTimerChannel(notificationManager)
 
+        val silent = SettingsRepository(context).load().silentNotifications
         val notification = NotificationCompat.Builder(context, TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Stopwatch alert")
@@ -272,6 +293,7 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
+            .setSilent(silent)
             .build()
 
         notifySafely(context, notificationManager, STOPWATCH_MARK_NOTIFICATION_ID, notification)
@@ -315,6 +337,7 @@ object NotificationHelper {
             stopIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val silent = SettingsRepository(context).load().silentNotifications
         val notification = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Stopwatch")
@@ -330,6 +353,7 @@ object NotificationHelper {
             .setContentIntent(openPendingIntent)
             .addAction(0, "Add lap", lapPendingIntent)
             .addAction(0, "Stop", stopPendingIntent)
+            .setSilent(silent)
             .build()
 
         notifySafely(context, notificationManager, notificationId, notification)

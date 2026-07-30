@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ca.sekhrit.alarmpro.data.AlarmSortMode
 import ca.sekhrit.alarmpro.data.TimePickerStyle
 import ca.sekhrit.alarmpro.data.TimerSpeechFormat
 import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
@@ -43,6 +44,7 @@ fun GeneralSettingsScreen(
     var showSpeechDialog by remember { mutableStateOf(false) }
     var showUpcomingDialog by remember { mutableStateOf(false) }
     var showTimePickerStyleDialog by remember { mutableStateOf(false) }
+    var showAlarmSortDialog by remember { mutableStateOf(false) }
 
     val timePickerOptions = remember { TimePickerStyle.entries.map { it.label } }
     val timePickerSelectedIndex = TimePickerStyle.entries.indexOf(settings.timePickerStyle)
@@ -54,6 +56,9 @@ fun GeneralSettingsScreen(
     val upcomingOptionLabels = remember { upcomingLeadOptions.map { upcomingAlarmLeadLabel(it) } }
     val upcomingSelectedIndex = upcomingLeadOptions.indexOf(settings.upcomingAlarmLeadMinutes)
         .takeIf { it >= 0 } ?: 0
+
+    val alarmSortOptions = remember { AlarmSortMode.entries.map { it.label } }
+    val alarmSortSelectedIndex = AlarmSortMode.entries.indexOf(settings.defaultAlarmSortMode)
 
     if (showSpeechDialog) {
         SettingsOptionDialog(
@@ -96,6 +101,21 @@ fun GeneralSettingsScreen(
                     settings.copy(timePickerStyle = TimePickerStyle.entries[index])
                 )
                 showTimePickerStyleDialog = false
+            }
+        )
+    }
+
+    if (showAlarmSortDialog) {
+        SettingsOptionDialog(
+            title = "Default alarm sorting",
+            options = alarmSortOptions,
+            selectedIndex = alarmSortSelectedIndex,
+            onDismiss = { showAlarmSortDialog = false },
+            onSelect = { index ->
+                viewModel.updateSettings(
+                    settings.copy(defaultAlarmSortMode = AlarmSortMode.entries[index])
+                )
+                showAlarmSortDialog = false
             }
         )
     }
@@ -147,6 +167,19 @@ fun GeneralSettingsScreen(
             )
 
             SettingsCategoryHeader("Misc Settings")
+            SettingsSwitchRow(
+                title = "Silent notifications",
+                subtitle = "Send notifications silently (without sound/vibration)",
+                checked = settings.silentNotifications,
+                onCheckedChange = {
+                    viewModel.updateSettings(settings.copy(silentNotifications = it))
+                }
+            )
+            SettingsValueRow(
+                title = "Default alarm sorting",
+                value = settings.defaultAlarmSortMode.label,
+                onClick = { showAlarmSortDialog = true }
+            )
             SettingsValueRow(
                 title = "Upcoming alarm notification",
                 value = upcomingAlarmLeadLabel(settings.upcomingAlarmLeadMinutes),

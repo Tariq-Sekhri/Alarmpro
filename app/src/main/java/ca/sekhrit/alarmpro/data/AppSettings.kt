@@ -10,6 +10,11 @@ enum class TimerControlStyle(val label: String) {
     PLAY_PAUSE_BUTTON("Play/pause button")
 }
 
+enum class AlarmSortMode(val label: String) {
+    NEXT_TRIGGER("Next trigger"),
+    TIME_OF_DAY("Time of day")
+}
+
 data class AppSettings(
     val defaultSnoozeEnabled: Boolean = true,
     val defaultSnoozeMinutes: Int = 10,
@@ -20,7 +25,10 @@ data class AppSettings(
     val timerSpeechFormat: TimerSpeechFormat = TimerSpeechFormat.TIME_AND_LABEL,
     val upcomingAlarmLeadMinutes: Int = 60,
     val timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
-    val timerControlStyle: TimerControlStyle = TimerControlStyle.SWITCH
+    val timerControlStyle: TimerControlStyle = TimerControlStyle.SWITCH,
+    val silentNotifications: Boolean = false,
+    val defaultAlarmSortMode: AlarmSortMode = AlarmSortMode.TIME_OF_DAY,
+    val activeAlarmsFirst: Boolean = false
 ) {
     val snoozeMinutes: Int get() = defaultSnoozeMinutes
     val vibrationEnabled: Boolean get() = defaultVibrate

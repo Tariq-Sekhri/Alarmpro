@@ -87,6 +87,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import ca.sekhrit.alarmpro.data.Alarm
+import ca.sekhrit.alarmpro.data.AlarmSortMode
 import ca.sekhrit.alarmpro.data.isSnoozeAllowed
 import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
 import ca.sekhrit.alarmpro.util.AlarmGrouping
@@ -100,11 +101,6 @@ import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
-
-private enum class AlarmSortMode {
-    NEXT_TRIGGER,
-    TIME_OF_DAY
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -123,8 +119,8 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var searchFieldFocused by remember { mutableStateOf(false) }
-    var sortMode by remember { mutableStateOf(AlarmSortMode.NEXT_TRIGGER) }
-    var activeAlarmsFirst by remember { mutableStateOf(false) }
+    val sortMode = settings.defaultAlarmSortMode
+    val activeAlarmsFirst = settings.activeAlarmsFirst
     var showSortMenu by remember { mutableStateOf(false) }
     var renameGroupId by remember { mutableStateOf<String?>(null) }
     var renameGroupLabel by remember { mutableStateOf("") }
@@ -447,7 +443,9 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                     DropdownMenuItem(
                                         text = { Text("Next alarm") },
                                         onClick = {
-                                            sortMode = AlarmSortMode.NEXT_TRIGGER
+                                            viewModel.updateSettings(
+                                                settings.copy(defaultAlarmSortMode = AlarmSortMode.NEXT_TRIGGER)
+                                            )
                                             showSortMenu = false
                                         },
                                         leadingIcon = {
@@ -459,7 +457,9 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                     DropdownMenuItem(
                                         text = { Text("Time of day") },
                                         onClick = {
-                                            sortMode = AlarmSortMode.TIME_OF_DAY
+                                            viewModel.updateSettings(
+                                                settings.copy(defaultAlarmSortMode = AlarmSortMode.TIME_OF_DAY)
+                                            )
                                             showSortMenu = false
                                         },
                                         leadingIcon = {
@@ -472,7 +472,9 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                     DropdownMenuItem(
                                         text = { Text("Active alarms first") },
                                         onClick = {
-                                            activeAlarmsFirst = !activeAlarmsFirst
+                                            viewModel.updateSettings(
+                                                settings.copy(activeAlarmsFirst = !settings.activeAlarmsFirst)
+                                            )
                                             showSortMenu = false
                                         },
                                         leadingIcon = {
