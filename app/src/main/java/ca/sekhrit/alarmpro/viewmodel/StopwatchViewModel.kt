@@ -46,7 +46,8 @@ data class StopwatchUiState(
 
 class StopwatchViewModel(application: Application) : AndroidViewModel(application) {
     private val presetRepository = StopwatchAlertPresetRepository(application)
-    val stopwatchId: String = UUID.randomUUID().toString()
+    private var sessionId: String = UUID.randomUUID().toString()
+    val stopwatchId: String get() = sessionId
     private var startElapsedRealtime = 0L
     private var accumulatedMs = 0L
     private var lastLapTotalMs = 0L
@@ -67,6 +68,16 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         instances[stopwatchId] = WeakReference(this)
+    }
+
+    /**
+     * Uses the screen's stable tab ID for both notification actions and session removal.
+     */
+    fun bindToSession(id: String) {
+        if (sessionId == id) return
+        instances.remove(sessionId)
+        sessionId = id
+        instances[sessionId] = WeakReference(this)
     }
 
     private fun currentElapsedMs(): Long {

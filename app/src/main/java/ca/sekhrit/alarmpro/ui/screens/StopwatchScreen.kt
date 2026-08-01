@@ -1,8 +1,10 @@
 package ca.sekhrit.alarmpro.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +41,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +52,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,10 +61,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -71,21 +80,33 @@ import ca.sekhrit.alarmpro.viewmodel.LapEntry
 import ca.sekhrit.alarmpro.viewmodel.StopwatchMark
 import ca.sekhrit.alarmpro.viewmodel.StopwatchViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+private data class StopwatchTab(
+    val id: String,
+    val label: String
+)
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun StopwatchScreen(
     onOpenSettings: () -> Unit = {},
     viewModel: StopwatchViewModel? = null
 ) {
-    var stopwatchIds by remember { mutableStateOf(listOf("default")) }
+    var stopwatchTabs by remember {
+        mutableStateOf(listOf(StopwatchTab(id = "default", label = "Stopwatch 1")))
+    }
     var selectedStopwatchId by remember { mutableStateOf("default") }
     val selectedViewModel = viewModel ?: composeViewModel<StopwatchViewModel>(key = selectedStopwatchId)
+    SideEffect {
+        selectedViewModel.bindToSession(selectedStopwatchId)
+    }
     val state by selectedViewModel.state.collectAsState()
     val markPresets by selectedViewModel.suggestedAlertSeconds.collectAsState()
     val bestLapMs = state.laps.minOfOrNull { it.lapTimeMs }
     val context = LocalContext.current
     var showCustomDialog by remember { mutableStateOf(false) }
     var showPresetEditor by remember { mutableStateOf(false) }
+    var renameStopwatchId by remember { mutableStateOf<String?>(null) }
+    var renameStopwatchLabel by remember { mutableStateOf("") }
     var alertsExpanded by remember { mutableStateOf(true) }
     var lapsExpanded by remember { mutableStateOf(true) }
     val currentLapMs = state.laps.firstOrNull()?.let { state.elapsedMs - it.totalTimeMs }
@@ -129,6 +150,40 @@ fun StopwatchScreen(
         )
     }
 
+    renameStopwatchId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { renameStopwatchId = null },
+            title = { Text("Rename stopwatch") },
+            text = {
+                OutlinedTextField(
+                    value = renameStopwatchLabel,
+                    onValueChange = { renameStopwatchLabel = it },
+                    singleLine = true,
+                    label = { Text("Name") }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = renameStopwatchLabel.trim().isNotEmpty(),
+                    onClick = {
+                        val label = renameStopwatchLabel.trim()
+                        stopwatchTabs = stopwatchTabs.map { tab ->
+                            if (tab.id == id) tab.copy(label = label) else tab
+                        }
+                        renameStopwatchId = null
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameStopwatchId = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -162,32 +217,51 @@ fun StopwatchScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            stopwatchIds.forEachIndexed { index, id ->
+            stopwatchTabs.forEach { tab ->
+                val id = tab.id
                 FilterChip(
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier
+                        .height(48.dp)
+                        .width(IntrinsicSize.Max),
                     selected = id == selectedStopwatchId,
                     onClick = { selectedStopwatchId = id },
                     label = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.combinedClickable(
+                                onClick = { selectedStopwatchId = id },
+                                onLongClick = {
+                                    renameStopwatchId = id
+                                    renameStopwatchLabel = tab.label
+                                }
+                            ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                "Stopwatch ${index + 1}",
+                                tab.label,
                                 maxLines = 1,
                                 softWrap = false
                             )
-                            if (stopwatchIds.size > 1) {
+                            if (stopwatchTabs.size > 1) {
                                 IconButton(
                                     onClick = {
-                                        val remaining = stopwatchIds - id
-                                        stopwatchIds = remaining
+                                        // Removing a session is a reset: stop its ticker and dismiss
+                                        // its own live notification before removing the tab.
                                         if (selectedStopwatchId == id) {
-                                            selectedStopwatchId = remaining.first()
+                                            selectedViewModel.reset()
+                                        } else {
+                                            StopwatchViewModel.instance(id)?.reset()
+                                        }
+                                        val remaining = stopwatchTabs.filter { it.id != id }
+                                        stopwatchTabs = remaining
+                                        if (selectedStopwatchId == id) {
+                                            selectedStopwatchId = remaining.first().id
                                         }
                                     },
                                     modifier = Modifier.width(24.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
-                                        contentDescription = "Remove stopwatch ${index + 1}"
+                                        contentDescription = "Remove ${tab.label}"
                                     )
                                 }
                             } else {
@@ -199,8 +273,12 @@ fun StopwatchScreen(
             }
             IconButton(
                 onClick = {
-                    val id = "stopwatch-${stopwatchIds.size + 1}"
-                    stopwatchIds = stopwatchIds + id
+                    val number = stopwatchTabs.size + 1
+                    val id = "stopwatch-$number"
+                    stopwatchTabs = stopwatchTabs + StopwatchTab(
+                        id = id,
+                        label = "Stopwatch $number"
+                    )
                     selectedStopwatchId = id
                 }
             ) {
@@ -274,20 +352,20 @@ fun StopwatchScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = if (!lapsExpanded && !alertsExpanded) {
+                Arrangement.SpaceBetween
+            } else {
+                Arrangement.spacedBy(16.dp)
+            },
             verticalAlignment = Alignment.Top
         ) {
-            CollapsibleSection(
-                title = "Laps",
-                summary = when {
-                    state.laps.isEmpty() -> "No laps yet"
-                    state.laps.size == 1 -> "1 lap"
-                    else -> "${state.laps.size} laps"
-                },
-                expanded = lapsExpanded,
-                onToggle = { lapsExpanded = !lapsExpanded },
-                modifier = Modifier.weight(1f)
-            ) {
+            if (lapsExpanded) {
+                CollapsibleSection(
+                    title = "Laps",
+                    onToggle = { lapsExpanded = false },
+                    collapseIcon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    modifier = Modifier.weight(1f)
+                ) {
             if (state.laps.isEmpty()) {
                 Text(
                     text = "Tap LAP while running to record a split.",
@@ -298,11 +376,20 @@ fun StopwatchScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
-                    Text("Lap Time:", style = MaterialTheme.typography.labelLarge)
-                    Text("Total Time:", style = MaterialTheme.typography.labelLarge)
+                    Spacer(modifier = Modifier.weight(0.14f))
+                    Text(
+                        "Lap Time:",
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.weight(0.54f)
+                    )
+                    Text(
+                        "Total Time:",
+                        style = MaterialTheme.typography.labelLarge,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(0.32f)
+                    )
                 }
                 Column(
                     modifier = Modifier
@@ -317,20 +404,23 @@ fun StopwatchScreen(
                         )
                     }
                 }
-            }
+                }
+                }
+            } else {
+                CollapsedSectionToggle(
+                    icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Expand laps",
+                    onClick = { lapsExpanded = true }
+                )
             }
 
-            CollapsibleSection(
-                title = "Time alerts",
-                summary = when (state.marks.size) {
-                    0 -> "No alerts"
-                    1 -> "1 alert"
-                    else -> "${state.marks.size} alerts"
-                },
-                expanded = alertsExpanded,
-                onToggle = { alertsExpanded = !alertsExpanded },
-                modifier = Modifier.weight(1f)
-            ) {
+            if (alertsExpanded) {
+                CollapsibleSection(
+                    title = "Time alerts",
+                    onToggle = { alertsExpanded = false },
+                    collapseIcon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    modifier = Modifier.weight(1f)
+                ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -373,7 +463,14 @@ fun StopwatchScreen(
                     elapsedMs = state.elapsedMs,
                     onRemove = { selectedViewModel.removeMark(mark.id) }
                 )
-            }
+                }
+                }
+            } else {
+                CollapsedSectionToggle(
+                    icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Expand time alerts",
+                    onClick = { alertsExpanded = true }
+                )
             }
         }
     }
@@ -383,9 +480,8 @@ fun StopwatchScreen(
 @Composable
 private fun CollapsibleSection(
     title: String,
-    summary: String,
-    expanded: Boolean,
     onToggle: () -> Unit,
+    collapseIcon: ImageVector,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -402,28 +498,36 @@ private fun CollapsibleSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                if (!expanded) {
-                    Text(
-                        summary,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             IconButton(onClick = onToggle) {
                 Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) "Minimize" else "Expand"
+                    imageVector = collapseIcon,
+                    contentDescription = "Collapse $title"
                 )
             }
         }
 
-        AnimatedVisibility(visible = expanded) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                content()
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            content()
         }
+    }
+}
+
+@Composable
+private fun CollapsedSectionToggle(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick) {
+        Icon(imageVector = icon, contentDescription = contentDescription)
     }
 }
 
@@ -759,19 +863,50 @@ private fun LapRow(lap: LapEntry, isBest: Boolean) {
         Text(
             text = "${lap.number}:",
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(0.2f)
+            modifier = Modifier.weight(0.14f)
         )
-        Text(
+        AutoSizingLapTime(
             text = TimeUtils.formatStopwatch(lap.lapTimeMs),
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = if (isBest) FontWeight.Bold else FontWeight.Normal,
             color = if (isBest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(0.4f)
+            modifier = Modifier.weight(0.54f)
         )
-        Text(
+        AutoSizingLapTime(
             text = TimeUtils.formatStopwatch(lap.totalTimeMs),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(0.4f)
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(0.32f)
+        )
+    }
+}
+
+@Composable
+private fun AutoSizingLapTime(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier,
+    textAlign: TextAlign = TextAlign.Start,
+    fontWeight: FontWeight? = null
+) {
+    BoxWithConstraints(modifier = modifier) {
+        var fontSize by remember(text, maxWidth) { mutableStateOf(style.fontSize) }
+        Text(
+            text = text,
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            textAlign = textAlign,
+            style = style.copy(fontSize = fontSize, fontWeight = fontWeight),
+            color = color,
+            onTextLayout = { result ->
+                if (result.hasVisualOverflow && fontSize > 9.sp) {
+                    fontSize = (fontSize.value - 1f).coerceAtLeast(9f).sp
+                }
+            }
         )
     }
 }
