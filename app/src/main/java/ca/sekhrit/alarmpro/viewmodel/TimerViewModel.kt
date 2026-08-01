@@ -9,6 +9,7 @@ import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.data.TimerState
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
+import ca.sekhrit.alarmpro.util.TimeUtils
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,11 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicReference
 
 class TimerViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = TimerRepository(application)
@@ -40,6 +38,7 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     private val notificationSeconds = mutableMapOf<String, Int>()
 
     init {
+        instance.set(WeakReference(this))
         syncFromStorage()
         ensureTicker()
     }
@@ -57,14 +56,9 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
                 .filter { it.isActive(_clockMillis.value) }
                 .minByOrNull { it.endTimeMillis }
                 ?: return null
-            val finishTime = LocalDateTime.ofInstant(
-                Instant.ofEpochMilli(next.endTimeMillis),
-                ZoneId.systemDefault()
-            )
-            val day = finishTime.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault()))
-            val time = finishTime.format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()))
-            val whenText = "$day $time"
-            return if (next.label.isBlank()) whenText else "${next.label} · $whenText"
+            val remaining = TimeUtils.formatDuration(next.liveRemainingSeconds(_clockMillis.value).toLong())
+            val total = TimeUtils.formatDuration(next.totalSeconds.toLong())
+            return "$remaining / $total"
         }
 
     fun startPreset(preset: TimerPreset) {
@@ -98,12 +92,13 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         val current = _activeTimers.value[preset.id] ?: return
         val remainingSeconds = current.liveRemainingSeconds()
         scheduler.cancel(current.id)
-        NotificationHelper.cancelTimerNotification(getApplication(), current.id)
         notificationSeconds.remove(preset.id)
+        val paused = current.copy(remainingSeconds = remainingSeconds, endTimeMillis = 0L, isRunning = false)
         updateActiveTimer(
             preset.id,
-            current.copy(remainingSeconds = remainingSeconds, endTimeMillis = 0L, isRunning = false)
+            paused
         )
+        NotificationHelper.showPausedTimerNotification(getApplication(), paused)
         ensureTicker()
     }
 
@@ -273,5 +268,18 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             state.copy(remainingSeconds = remaining, isRunning = true)
         }
+    }
+
+    override fun onCleared() {
+        if (instance.get()?.get() === this) {
+            instance.set(null)
+        }
+        super.onCleared()
+    }
+
+    companion object {
+        private val instance = AtomicReference<WeakReference<TimerViewModel>?>(null)
+
+        fun instance(): TimerViewModel? = instance.get()?.get()
     }
 }

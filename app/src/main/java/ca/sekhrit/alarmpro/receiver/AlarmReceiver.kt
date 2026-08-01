@@ -35,6 +35,14 @@ class AlarmReceiver : BroadcastReceiver() {
                 AlarmRingingService.stop(context)
                 AlarmRingActivity.notifyRingingStopped(context)
             }
+            ACTION_CANCEL_ALARM -> {
+                val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
+                AlarmActions.cancel(context, alarmId)
+            }
+            ACTION_SKIP_ALARM -> {
+                val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
+                AlarmActions.skipNext(context, alarmId)
+            }
             ACTION_DISMISS_TIMER -> {
                 val timerId = intent.getStringExtra(TimerScheduler.EXTRA_TIMER_ID) ?: return
                 TimerRepository(context).removeTimer(timerId)
@@ -109,7 +117,8 @@ class AlarmReceiver : BroadcastReceiver() {
             alarmId = alarmId,
             label = alarm.label,
             timeText = timeText,
-            leadText = leadText
+            leadText = leadText,
+            isRepeating = alarm.repeat.type != ca.sekhrit.alarmpro.data.RepeatType.ONCE
         )
     }
 
@@ -130,6 +139,8 @@ class AlarmReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_DISMISS_ALARM = "ca.sekhrit.alarmpro.DISMISS_ALARM"
         const val ACTION_SNOOZE_ALARM = "ca.sekhrit.alarmpro.SNOOZE_ALARM"
+        const val ACTION_CANCEL_ALARM = "ca.sekhrit.alarmpro.CANCEL_ALARM"
+        const val ACTION_SKIP_ALARM = "ca.sekhrit.alarmpro.SKIP_ALARM"
         const val ACTION_DISMISS_TIMER = "ca.sekhrit.alarmpro.DISMISS_TIMER"
     }
 }

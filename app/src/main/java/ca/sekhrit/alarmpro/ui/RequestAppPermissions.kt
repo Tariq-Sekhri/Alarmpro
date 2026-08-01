@@ -16,9 +16,21 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 fun RequestAppPermissions() {
     val context = LocalContext.current
-    val fullScreenLauncher = rememberLauncherForActivityResult(
+    val dndAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { }
+    val requestDndAccess = {
+        val notificationManager =
+            context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (!notificationManager.isNotificationPolicyAccessGranted) {
+            dndAccessLauncher.launch(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+        }
+    }
+    val fullScreenLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        requestDndAccess()
+    }
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
@@ -32,8 +44,10 @@ fun RequestAppPermissions() {
                         Uri.parse("package:${context.packageName}")
                     )
                 )
+                return@rememberLauncherForActivityResult
             }
         }
+        requestDndAccess()
     }
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -56,8 +70,10 @@ fun RequestAppPermissions() {
                         Uri.parse("package:${context.packageName}")
                     )
                 )
+                return@rememberLauncherForActivityResult
             }
         }
+        requestDndAccess()
     }
 
     LaunchedEffect(Unit) {
@@ -87,7 +103,9 @@ fun RequestAppPermissions() {
                         Uri.parse("package:${context.packageName}")
                     )
                 )
+                return@LaunchedEffect
             }
         }
+        requestDndAccess()
     }
 }

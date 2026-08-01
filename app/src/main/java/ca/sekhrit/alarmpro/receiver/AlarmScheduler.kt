@@ -5,8 +5,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import ca.sekhrit.alarmpro.data.Alarm
+import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.SettingsRepository
+import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.util.RepeatCalculator
+import ca.sekhrit.alarmpro.util.TimeUtils
 
 class AlarmScheduler(private val context: Context) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -72,7 +75,17 @@ class AlarmScheduler(private val context: Context) {
 
         val upcomingAt = triggerAt - leadMinutes * 60_000L
         if (upcomingAt <= System.currentTimeMillis()) {
+            // The alarm was created or edited within its warning window. The warning
+            // should be useful immediately instead of being silently skipped.
             cancelUpcoming(alarm)
+            NotificationHelper.showUpcomingAlarmNotification(
+                context = context,
+                alarmId = alarm.id,
+                label = alarm.label,
+                timeText = TimeUtils.formatTime(alarm.time, settings.use24HourFormat),
+                leadText = upcomingAlarmLeadLabel(leadMinutes),
+                isRepeating = alarm.repeat.type != RepeatType.ONCE
+            )
             return
         }
 

@@ -4,6 +4,7 @@ import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import ca.sekhrit.alarmpro.data.StopwatchAlertPresetRepository
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.util.TimeUtils
 import kotlinx.coroutines.Job
@@ -27,7 +28,7 @@ data class StopwatchMark(
     val targetMs: Long,
     val triggered: Boolean = false
 ) {
-    val label: String get() = TimeUtils.formatStopwatch(targetMs)
+    val label: String get() = TimeUtils.formatDuration(targetMs / 1000L)
 }
 
 data class StopwatchAlertEvent(
@@ -44,6 +45,7 @@ data class StopwatchUiState(
 )
 
 class StopwatchViewModel(application: Application) : AndroidViewModel(application) {
+    private val presetRepository = StopwatchAlertPresetRepository(application)
     val stopwatchId: String = UUID.randomUUID().toString()
     private var startElapsedRealtime = 0L
     private var accumulatedMs = 0L
@@ -53,6 +55,15 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _state = MutableStateFlow(StopwatchUiState())
     val state: StateFlow<StopwatchUiState> = _state.asStateFlow()
+    val suggestedAlertSeconds: StateFlow<List<Int>> = presetRepository.presets
+
+    fun saveSuggestedAlertSeconds(seconds: List<Int>) {
+        presetRepository.savePresets(seconds)
+    }
+
+    fun resetSuggestedAlertSeconds() {
+        presetRepository.resetToDefault()
+    }
 
     init {
         instances[stopwatchId] = WeakReference(this)
@@ -103,7 +114,7 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
             tickJob = null
             _state.value = _state.value.copy(isRunning = false, elapsedMs = accumulatedMs)
             lastNotificationSecond = -1L
-            NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
+            NotificationHelper.showPausedStopwatchNotification(getApplication(), stopwatchId, accumulatedMs)
         } else {
             startElapsedRealtime = SystemClock.elapsedRealtime()
             lastNotificationSecond = accumulatedMs / 1000L
@@ -120,7 +131,16 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun stop() {
-        if (_state.value.isRunning) startPause()
+        if (!_state.value.isRunning) {
+            NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
+            return
+        }
+        accumulatedMs = currentElapsedMs()
+        tickJob?.cancel()
+        tickJob = null
+        _state.value = _state.value.copy(isRunning = false, elapsedMs = accumulatedMs)
+        lastNotificationSecond = -1L
+        NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
     }
 
     fun lap() {
@@ -139,7 +159,12 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun addMark(totalMinutes: Int) {
         if (totalMinutes <= 0) return
-        val targetMs = totalMinutes * 60_000L
+        addMarkAtSeconds(totalMinutes * 60)
+    }
+
+    fun addMarkAtSeconds(totalSeconds: Int) {
+        if (totalSeconds <= 0) return
+        val targetMs = totalSeconds * 1000L
         if (_state.value.marks.any { it.targetMs == targetMs }) return
         _state.value = _state.value.copy(
             marks = (_state.value.marks + StopwatchMark(targetMs = targetMs))
@@ -183,15 +208,17 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
             elapsedMs = 0L,
             isRunning = false,
             laps = emptyList(),
-            marks = _state.value.marks.map { it.copy(triggered = false) },
+            marks = emptyList(),
             alertEvent = null
         )
         NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
+        NotificationHelper.cancelStopwatchMarkNotification(getApplication())
     }
 
     override fun onCleared() {
         tickJob?.cancel()
         instances.remove(stopwatchId)
+        presetRepository.close()
         NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
         super.onCleared()
     }

@@ -8,8 +8,45 @@ import ca.sekhrit.alarmpro.data.isSnoozeAllowed
 import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
 import ca.sekhrit.alarmpro.receiver.AlarmScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
+import ca.sekhrit.alarmpro.util.RepeatCalculator
 
 object AlarmActions {
+    fun cancel(context: Context, alarmId: String) {
+        val repository = AlarmRepository(context)
+        val scheduler = AlarmScheduler(context)
+        val alarms = repository.loadAlarms()
+        val alarm = alarms.find { it.id == alarmId }
+
+        scheduler.cancel(alarmId)
+        if (alarm != null) {
+            repository.saveAlarms(
+                alarms.map {
+                    if (it.id == alarmId) it.copy(isEnabled = false, skipUntilEpochDay = null) else it
+                }
+            )
+        }
+        NotificationHelper.cancelAlarmNotification(context, alarmId)
+        NotificationHelper.cancelUpcomingNotification(context, alarmId)
+    }
+
+    fun skipNext(context: Context, alarmId: String) {
+        val repository = AlarmRepository(context)
+        val scheduler = AlarmScheduler(context)
+        val alarms = repository.loadAlarms()
+        val alarm = alarms.find { it.id == alarmId } ?: return
+        if (!alarm.isEnabled || alarm.repeat.type == RepeatType.ONCE) {
+            cancel(context, alarmId)
+            return
+        }
+
+        val skipDay = RepeatCalculator.nextUnskippedTriggerDate(alarm).toEpochDay()
+        val updated = alarm.copy(skipUntilEpochDay = skipDay)
+        repository.saveAlarms(alarms.map { if (it.id == alarmId) updated else it })
+        scheduler.schedule(updated)
+        NotificationHelper.cancelAlarmNotification(context, alarmId)
+        NotificationHelper.cancelUpcomingNotification(context, alarmId)
+    }
+
     fun dismiss(context: Context, alarmId: String) {
         val repository = AlarmRepository(context)
         val scheduler = AlarmScheduler(context)

@@ -4,8 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,7 +71,7 @@ import ca.sekhrit.alarmpro.viewmodel.LapEntry
 import ca.sekhrit.alarmpro.viewmodel.StopwatchMark
 import ca.sekhrit.alarmpro.viewmodel.StopwatchViewModel
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StopwatchScreen(
     onOpenSettings: () -> Unit = {},
@@ -82,20 +81,15 @@ fun StopwatchScreen(
     var selectedStopwatchId by remember { mutableStateOf("default") }
     val selectedViewModel = viewModel ?: composeViewModel<StopwatchViewModel>(key = selectedStopwatchId)
     val state by selectedViewModel.state.collectAsState()
+    val markPresets by selectedViewModel.suggestedAlertSeconds.collectAsState()
     val bestLapMs = state.laps.minOfOrNull { it.lapTimeMs }
     val context = LocalContext.current
     var showCustomDialog by remember { mutableStateOf(false) }
+    var showPresetEditor by remember { mutableStateOf(false) }
     var alertsExpanded by remember { mutableStateOf(true) }
     var lapsExpanded by remember { mutableStateOf(true) }
-    val currentLapMs = state.laps.lastOrNull()?.let { state.elapsedMs - it.totalTimeMs }
+    val currentLapMs = state.laps.firstOrNull()?.let { state.elapsedMs - it.totalTimeMs }
         ?: state.elapsedMs
-    val markPresets = listOf(
-        5 to "5 min",
-        15 to "15 min",
-        30 to "30 min",
-        60 to "1 hr",
-        120 to "2 hr"
-    )
 
     state.alertEvent?.let { event ->
         AlertDialog(
@@ -123,6 +117,15 @@ fun StopwatchScreen(
                 selectedViewModel.addCustomMark(hours, minutes, seconds)
                 showCustomDialog = false
             }
+        )
+    }
+
+    if (showPresetEditor) {
+        SuggestedAlertPresetsDialog(
+            presets = markPresets,
+            onDismiss = { showPresetEditor = false },
+            onSave = { selectedViewModel.saveSuggestedAlertSeconds(it) },
+            onReset = { selectedViewModel.resetSuggestedAlertSeconds() }
         )
     }
 
@@ -161,7 +164,7 @@ fun StopwatchScreen(
         ) {
             stopwatchIds.forEachIndexed { index, id ->
                 FilterChip(
-                    modifier = Modifier.height(64.dp),
+                    modifier = Modifier.height(48.dp),
                     selected = id == selectedStopwatchId,
                     onClick = { selectedStopwatchId = id },
                     label = {
@@ -213,7 +216,7 @@ fun StopwatchScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -221,11 +224,16 @@ fun StopwatchScreen(
                     style = MaterialTheme.typography.displayMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                Text(
+                    text = "Current Lap: ${TimeUtils.formatStopwatch(currentLapMs)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 20.dp),
+                        .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -256,29 +264,30 @@ fun StopwatchScreen(
                     enabled = state.isRunning,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp)
+                        .padding(top = 8.dp)
+                        .height(40.dp)
                 ) {
                     Text("LAP")
                 }
             }
         }
 
-        Text(
-            text = "Current Lap: ${TimeUtils.formatStopwatch(currentLapMs)}",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
-        )
-
-        CollapsibleSection(
-            title = "Laps",
-            summary = when {
-                state.laps.isEmpty() -> "No laps yet"
-                state.laps.size == 1 -> "1 lap"
-                else -> "${state.laps.size} laps"
-            },
-            expanded = lapsExpanded,
-            onToggle = { lapsExpanded = !lapsExpanded }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.Top
         ) {
+            CollapsibleSection(
+                title = "Laps",
+                summary = when {
+                    state.laps.isEmpty() -> "No laps yet"
+                    state.laps.size == 1 -> "1 lap"
+                    else -> "${state.laps.size} laps"
+                },
+                expanded = lapsExpanded,
+                onToggle = { lapsExpanded = !lapsExpanded },
+                modifier = Modifier.weight(1f)
+            ) {
             if (state.laps.isEmpty()) {
                 Text(
                     text = "Tap LAP while running to record a split.",
@@ -289,58 +298,73 @@ fun StopwatchScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Lap Time:", style = MaterialTheme.typography.labelLarge)
                     Text("Total Time:", style = MaterialTheme.typography.labelLarge)
                 }
-                state.laps.forEach { lap ->
-                    LapRow(
-                        lap = lap,
-                        isBest = lap.lapTimeMs == bestLapMs
-                    )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 280.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    state.laps.forEach { lap ->
+                        LapRow(
+                            lap = lap,
+                            isBest = lap.lapTimeMs == bestLapMs
+                        )
+                    }
                 }
             }
-        }
+            }
 
-        CollapsibleSection(
-            title = "Time alerts",
-            summary = when (state.marks.size) {
-                0 -> "No alerts"
-                1 -> "1 alert"
-                else -> "${state.marks.size} alerts"
-            },
-            expanded = alertsExpanded,
-            onToggle = { alertsExpanded = !alertsExpanded },
-            modifier = Modifier.padding(top = 24.dp)
-        ) {
-            Text(
-                "Get alerted when the stopwatch reaches a target time",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                markPresets.forEach { (minutes, label) ->
-                    FilterChip(
-                        selected = state.marks.any { it.targetMs == minutes * 60_000L },
-                        onClick = {
-                            if (state.marks.any { it.targetMs == minutes * 60_000L }) {
-                                state.marks.find { it.targetMs == minutes * 60_000L }?.let {
-                                    selectedViewModel.removeMark(it.id)
-                                }
-                            } else {
-                                selectedViewModel.addMark(minutes)
-                            }
-                        },
-                        label = { Text(label) }
-                    )
+            CollapsibleSection(
+                title = "Time alerts",
+                summary = when (state.marks.size) {
+                    0 -> "No alerts"
+                    1 -> "1 alert"
+                    else -> "${state.marks.size} alerts"
+                },
+                expanded = alertsExpanded,
+                onToggle = { alertsExpanded = !alertsExpanded },
+                modifier = Modifier.weight(1f)
+            ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Get alerted when the stopwatch reaches a target time",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { showPresetEditor = true }) {
+                    Text("Edit")
                 }
+            }
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 FilterChip(
                     selected = false,
                     onClick = { showCustomDialog = true },
                     label = { Text("Custom") }
                 )
+                markPresets.forEach { seconds ->
+                    AlertPresetChip(
+                        label = TimeUtils.formatDuration(seconds.toLong()),
+                        selected = state.marks.any { it.targetMs == seconds * 1000L },
+                        onToggle = {
+                            state.marks.find { it.targetMs == seconds * 1000L }?.let {
+                                selectedViewModel.removeMark(it.id)
+                            } ?: selectedViewModel.addMarkAtSeconds(seconds)
+                        }
+                    )
+                }
             }
 
             state.marks.forEach { mark ->
@@ -349,6 +373,7 @@ fun StopwatchScreen(
                     elapsedMs = state.elapsedMs,
                     onRemove = { selectedViewModel.removeMark(mark.id) }
                 )
+            }
             }
         }
     }
@@ -366,13 +391,13 @@ private fun CollapsibleSection(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onToggle)
-                .padding(vertical = 4.dp),
+                .padding(vertical = 0.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -395,7 +420,7 @@ private fun CollapsibleSection(
         }
 
         AnimatedVisibility(visible = expanded) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 content()
             }
         }
@@ -501,6 +526,190 @@ private fun CustomMarkDialog(
 }
 
 @Composable
+private fun AlertPresetChip(
+    label: String,
+    selected: Boolean,
+    onToggle: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onToggle,
+        label = { Text(label) }
+    )
+}
+
+@Composable
+private fun SuggestedAlertPresetsDialog(
+    presets: List<Int>,
+    onDismiss: () -> Unit,
+    onSave: (List<Int>) -> Unit,
+    onReset: () -> Unit
+) {
+    var hours by remember { mutableIntStateOf(0) }
+    var minutes by remember { mutableIntStateOf(0) }
+    var seconds by remember { mutableIntStateOf(0) }
+    var editingPresetSeconds by remember { mutableStateOf<Int?>(null) }
+    val pickerSeconds = hours * 3600 + minutes * 60 + seconds
+    val canSave = pickerSeconds > 0 &&
+        (editingPresetSeconds == pickerSeconds || pickerSeconds !in presets)
+
+    fun clearPicker() {
+        hours = 0
+        minutes = 0
+        seconds = 0
+        editingPresetSeconds = null
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 680.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF293743),
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "Suggested time alerts",
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(Color(0xFF465561), Color(0xFF2C3945))
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 11.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 15.dp, end = 15.dp, top = 17.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    DurationWheel(
+                        label = "hour",
+                        value = hours,
+                        maxValue = 99,
+                        onValueChange = { hours = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = ":",
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        modifier = Modifier.width(28.dp).padding(top = 93.dp)
+                    )
+                    DurationWheel(
+                        label = "min",
+                        value = minutes,
+                        maxValue = 59,
+                        onValueChange = { minutes = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = ":",
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        modifier = Modifier.width(28.dp).padding(top = 93.dp)
+                    )
+                    DurationWheel(
+                        label = "sec",
+                        value = seconds,
+                        maxValue = 59,
+                        onValueChange = { seconds = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                FilledTonalButton(
+                    onClick = {
+                        val updated = if (editingPresetSeconds == null) {
+                            presets + pickerSeconds
+                        } else {
+                            presets.filterNot { it == editingPresetSeconds } + pickerSeconds
+                        }
+                        onSave(updated.distinct().sorted())
+                        clearPicker()
+                    },
+                    enabled = canSave,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(if (editingPresetSeconds == null) "Add" else "Update")
+                }
+
+                Text(
+                    text = "Current suggestions",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                presets.forEach { presetSeconds ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardSurface)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = TimeUtils.formatDuration(presetSeconds.toLong()),
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = {
+                                hours = presetSeconds / 3600
+                                minutes = (presetSeconds % 3600) / 60
+                                seconds = presetSeconds % 60
+                                editingPresetSeconds = presetSeconds
+                            }) {
+                                Text("Edit")
+                            }
+                            TextButton(onClick = {
+                                onSave(presets.filterNot { it == presetSeconds })
+                                if (editingPresetSeconds == presetSeconds) clearPicker()
+                            }) {
+                                Text("Delete")
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = {
+                        onReset()
+                        clearPicker()
+                    }) {
+                        Text("Reset to default")
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Done")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun MarkRow(
     mark: StopwatchMark,
     elapsedMs: Long,
@@ -511,7 +720,7 @@ private fun MarkRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -543,7 +752,7 @@ private fun LapRow(lap: LapEntry, isBest: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -21,7 +21,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import ca.sekhrit.alarmpro.ui.components.SettingsNavRow
+import ca.sekhrit.alarmpro.ui.components.SettingsCategoryHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +77,13 @@ fun SettingsScreen(
                 title = "Stopwatch Settings",
                 icon = Icons.Default.Timer,
                 onClick = onOpenStopwatch
+            )
+            SettingsCategoryHeader("Acknowledgements")
+            Text(
+                text = "Special thanks to John.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
         }
     }

@@ -12,6 +12,8 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.View
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import ca.sekhrit.alarmpro.AlarmRingActivity
@@ -20,16 +22,24 @@ import ca.sekhrit.alarmpro.R
 import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.data.TimerState
 import ca.sekhrit.alarmpro.util.TimeUtils
+import java.time.Instant
+import java.time.ZoneId
 
 object NotificationHelper {
     // Ringing is handled by AlarmRingActivity so the selected sound is the only sound.
     // Version the channel to replace older installs whose channel still had a default sound.
     private const val ALARM_CHANNEL = "alarm_channel_v2"
     private const val UPCOMING_CHANNEL = "upcoming_alarm_channel"
-    private const val TIMER_CHANNEL = "timer_channel_v2"
+    // v3 is a fresh channel so existing installs receive the DND-bypass setting.
+    private const val TIMER_CHANNEL = "timer_channel_v3"
     private const val ACTIVE_TIMER_CHANNEL = "active_timer_channel_v1"
     private const val STOPWATCH_MARK_NOTIFICATION_ID = 9002
     private const val STOPWATCH_NOTIFICATION_ID = 9003
+
+    private data class NotificationControl(
+        val label: String,
+        val pendingIntent: PendingIntent
+    )
 
     fun canPostNotifications(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
@@ -100,6 +110,7 @@ object NotificationHelper {
             .setContentText("Tap to open")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setGroup(isolatedNotificationGroup("alarm", alarmId.hashCode()))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setFullScreenIntent(ringPendingIntent, true)
@@ -119,7 +130,8 @@ object NotificationHelper {
         alarmId: String,
         label: String,
         timeText: String,
-        leadText: String
+        leadText: String,
+        isRepeating: Boolean
     ) {
         if (!canPostNotifications(context)) return
 
@@ -146,14 +158,34 @@ object NotificationHelper {
             openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val actionIntent = Intent(context, AlarmReceiver::class.java).apply {
+            action = if (isRepeating) AlarmReceiver.ACTION_SKIP_ALARM else AlarmReceiver.ACTION_CANCEL_ALARM
+            putExtra(AlarmScheduler.EXTRA_ALARM_ID, alarmId)
+        }
+        val actionPendingIntent = PendingIntent.getBroadcast(
+            context,
+            upcomingNotificationId(alarmId) + 1,
+            actionIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val silent = SettingsRepository(context).load().silentNotifications
+        val actionLabel = if (isRepeating) "Skip" else "Cancel alarm"
+        val controls = notificationControls(
+            context,
+            title,
+            content,
+            listOf(NotificationControl(actionLabel, actionPendingIntent))
+        )
         val notification = NotificationCompat.Builder(context, UPCOMING_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(content)
+            .setCustomContentView(controls)
+            .setCustomBigContentView(controls)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setGroup(isolatedNotificationGroup("upcoming", upcomingNotificationId(alarmId)))
             .setAutoCancel(true)
             .setContentIntent(openPendingIntent)
             .setSilent(silent)
@@ -217,6 +249,7 @@ object NotificationHelper {
             .setContentText("Timer complete")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setGroup(isolatedNotificationGroup("timer", notificationId))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setFullScreenIntent(openPendingIntent, true)
@@ -228,7 +261,15 @@ object NotificationHelper {
 
     fun showActiveTimerNotification(context: Context, timer: TimerState) {
         if (!timer.isActive() || !canPostNotifications(context)) return
+        showTimerNotification(context, timer, isPaused = false)
+    }
 
+    fun showPausedTimerNotification(context: Context, timer: TimerState) {
+        if (timer.remainingSeconds <= 0 || !canPostNotifications(context)) return
+        showTimerNotification(context, timer, isPaused = true)
+    }
+
+    private fun showTimerNotification(context: Context, timer: TimerState, isPaused: Boolean) {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureActiveTimerChannel(notificationManager)
@@ -244,31 +285,71 @@ object NotificationHelper {
             openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val title = if (timer.label.isBlank()) "Timer running" else timer.label
-        val silent = SettingsRepository(context).load().silentNotifications
+        val remaining = TimeUtils.formatDuration(timer.liveRemainingSeconds().toLong())
+        val total = TimeUtils.formatDuration(timer.totalSeconds.toLong())
+        val settings = SettingsRepository(context).load()
+        val timerSubtext = if (isPaused) {
+            "Paused"
+        } else {
+            val ringTime = TimeUtils.formatTime(
+                Instant.ofEpochMilli(timer.endTimeMillis).atZone(ZoneId.systemDefault()).toLocalTime(),
+                settings.use24HourFormat
+            )
+            "Rings at $ringTime"
+        }
+        val timerActionIntent = Intent(context, TimerActionReceiver::class.java).apply {
+            action = if (isPaused) TimerActionReceiver.ACTION_RESUME else TimerActionReceiver.ACTION_PAUSE
+            putExtra(TimerScheduler.EXTRA_TIMER_ID, timer.id)
+        }
+        val timerActionPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 1,
+            timerActionIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val closeIntent = Intent(context, TimerActionReceiver::class.java).apply {
+            action = TimerActionReceiver.ACTION_CLOSE
+            putExtra(TimerScheduler.EXTRA_TIMER_ID, timer.id)
+        }
+        val closePendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 2,
+            closeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val title = "$remaining / $total"
+        val controls = notificationControls(
+            context,
+            title,
+            timerSubtext,
+            listOf(
+                NotificationControl(if (isPaused) "Resume" else "Pause", timerActionPendingIntent),
+                NotificationControl("Close", closePendingIntent)
+            )
+        )
         val builder = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
-            .setContentText(TimeUtils.formatDuration(timer.liveRemainingSeconds().toLong()))
-            .setWhen(timer.endTimeMillis)
-            .setShowWhen(true)
-            .setUsesChronometer(true)
-            .setChronometerCountDown(true)
+            .setContentText(timerSubtext)
+            .setCustomContentView(controls)
+            .setCustomBigContentView(controls)
+            .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setGroup(isolatedNotificationGroup("timer", notificationId))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setContentIntent(openPendingIntent)
-            .setSilent(silent)
+            .setSilent(settings.silentNotifications)
 
-        if (LiveUpdateCompatibility.shouldRequestPromotion(Build.VERSION.SDK_INT)) {
+        if (!isPaused && LiveUpdateCompatibility.shouldRequestPromotion(Build.VERSION.SDK_INT)) {
             // Android 16 may surface this as a status-bar chip (for example, OxygenOS Live Alerts).
             // The system and user settings decide whether the request is promoted.
             builder
                 .setOngoing(true)
                 .setRequestPromotedOngoing(true)
         } else {
-            // Preserve the existing, dismissible notification behavior on Android 15 and lower.
+            // Paused timers and Android 15-and-lower timers stay dismissible.
             builder.setOngoing(false)
         }
 
@@ -292,6 +373,7 @@ object NotificationHelper {
             .setContentText("Reached $targetLabel")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setGroup(isolatedNotificationGroup("stopwatch-mark", STOPWATCH_MARK_NOTIFICATION_ID))
             .setAutoCancel(true)
             .setSilent(silent)
             .build()
@@ -300,6 +382,19 @@ object NotificationHelper {
     }
 
     fun showActiveStopwatchNotification(context: Context, stopwatchId: String, elapsedMs: Long) {
+        showStopwatchNotification(context, stopwatchId, elapsedMs, isRunning = true)
+    }
+
+    fun showPausedStopwatchNotification(context: Context, stopwatchId: String, elapsedMs: Long) {
+        showStopwatchNotification(context, stopwatchId, elapsedMs, isRunning = false)
+    }
+
+    private fun showStopwatchNotification(
+        context: Context,
+        stopwatchId: String,
+        elapsedMs: Long,
+        isRunning: Boolean
+    ) {
         if (!canPostNotifications(context)) return
 
         val notificationManager =
@@ -327,6 +422,16 @@ object NotificationHelper {
             lapIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val pauseResumeIntent = Intent(context, StopwatchActionReceiver::class.java).apply {
+            action = StopwatchActionReceiver.ACTION_TOGGLE
+            putExtra(StopwatchActionReceiver.EXTRA_STOPWATCH_ID, stopwatchId)
+        }
+        val pauseResumePendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 3,
+            pauseResumeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val stopIntent = Intent(context, StopwatchActionReceiver::class.java).apply {
             action = StopwatchActionReceiver.ACTION_STOP
             putExtra(StopwatchActionReceiver.EXTRA_STOPWATCH_ID, stopwatchId)
@@ -338,21 +443,32 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val silent = SettingsRepository(context).load().silentNotifications
+        val stopwatchText = TimeUtils.formatDuration(elapsedMs / 1000)
+        val controls = notificationControls(
+            context,
+            stopwatchText,
+            null,
+            listOf(
+                NotificationControl(if (isRunning) "Pause" else "Resume", pauseResumePendingIntent),
+                NotificationControl("Lap", lapPendingIntent),
+                NotificationControl("Stop", stopPendingIntent)
+            )
+        )
         val notification = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Stopwatch")
-            .setContentText(TimeUtils.formatDuration(elapsedMs / 1000))
-            .setWhen(System.currentTimeMillis() - elapsedMs)
-            .setShowWhen(true)
-            .setUsesChronometer(true)
+            .setContentTitle(stopwatchText)
+            .setContentText(null)
+            .setCustomContentView(controls)
+            .setCustomBigContentView(controls)
+            .setShowWhen(false)
+            .setUsesChronometer(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+            .setGroup(isolatedNotificationGroup("stopwatch", notificationId))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(false)
             .setContentIntent(openPendingIntent)
-            .addAction(0, "Add lap", lapPendingIntent)
-            .addAction(0, "Stop", stopPendingIntent)
             .setSilent(silent)
             .build()
 
@@ -387,6 +503,43 @@ object NotificationHelper {
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(TimerScheduler.notificationIdFor(timerId))
     }
+
+    private fun notificationControls(
+        context: Context,
+        title: String,
+        subtitle: String?,
+        controls: List<NotificationControl>
+    ): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.notification_controls)
+        views.setTextViewText(R.id.notification_title, title)
+        views.setViewVisibility(
+            R.id.notification_subtitle,
+            if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
+        )
+        if (!subtitle.isNullOrBlank()) {
+            views.setTextViewText(R.id.notification_subtitle, subtitle)
+        }
+
+        val actionViewIds = intArrayOf(
+            R.id.notification_action_one,
+            R.id.notification_action_two,
+            R.id.notification_action_three
+        )
+        actionViewIds.forEachIndexed { index, viewId ->
+            val control = controls.getOrNull(index)
+            if (control == null) {
+                views.setViewVisibility(viewId, View.GONE)
+            } else {
+                views.setViewVisibility(viewId, View.VISIBLE)
+                views.setTextViewText(viewId, control.label)
+                views.setOnClickPendingIntent(viewId, control.pendingIntent)
+            }
+        }
+        return views
+    }
+
+    private fun isolatedNotificationGroup(kind: String, id: Int): String =
+        "ca.sekhrit.alarmpro.$kind.$id"
 
     private fun notifySafely(
         context: Context,
@@ -433,9 +586,10 @@ object NotificationHelper {
             "Timers",
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Timer and stopwatch notifications"
+            description = "Timer completion and stopwatch alerts that can bypass Do Not Disturb"
             enableVibration(true)
             setSound(null, null)
+            setBypassDnd(notificationManager.isNotificationPolicyAccessGranted())
         }
         notificationManager.createNotificationChannel(channel)
     }
