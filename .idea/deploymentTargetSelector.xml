@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-07-29T22:54:08.041766100Z">
+        <DropdownSelection timestamp="2026-08-01T04:01:10.492081800Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\hulks\.android\avd\tiktok.avd" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\hulks\.android\avd\Oneplus_12r.avd" />
             </handle>
           </Target>
         </DropdownSelection>

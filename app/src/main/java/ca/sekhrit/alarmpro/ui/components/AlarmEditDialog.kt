@@ -38,7 +38,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 import ca.sekhrit.alarmpro.data.TimePickerStyle
+import ca.sekhrit.alarmpro.ui.components.DurationPickerDialog
 import ca.sekhrit.alarmpro.ui.components.WheelTimePicker
+import ca.sekhrit.alarmpro.util.TimeUtils
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -73,6 +75,8 @@ fun AlarmEditDialog(
     var useDefaultSnoozeLength by remember(alarm?.id) { mutableStateOf(alarm?.snoozeMinutes == null) }
     var customSnoozeMinutes by remember(alarm?.id) { mutableIntStateOf(alarm?.snoozeMinutes ?: defaultSnoozeMinutes) }
     val snoozeLengthOptions = listOf(5, 10, 15, 20, 30, 45, 60)
+    var showCustomSnoozeDialog by remember { mutableStateOf(false) }
+    val isCustomSnooze = !useDefaultSnoozeLength && customSnoozeMinutes !in snoozeLengthOptions
 
     val anchorEpochDay = alarm?.repeat?.anchorEpochDay ?: alarm?.createdEpochDay ?: LocalDate.now().toEpochDay()
     val dayOptions = listOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
@@ -94,6 +98,21 @@ fun AlarmEditDialog(
         dayOfMonth = dayOfMonth,
         anchorEpochDay = anchorEpochDay
     )
+
+    if (showCustomSnoozeDialog) {
+        DurationPickerDialog(
+            title = "Snooze Duration:",
+            initialTotalSeconds = customSnoozeMinutes * 60,
+            showLabel = false,
+            showSeconds = false,
+            onDismiss = { showCustomSnoozeDialog = false },
+            onConfirm = { totalSeconds, _ ->
+                useDefaultSnoozeLength = false
+                customSnoozeMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)
+                showCustomSnoozeDialog = false
+            }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -254,7 +273,7 @@ fun AlarmEditDialog(
                         )
                         snoozeLengthOptions.forEach { minutes ->
                             FilterChip(
-                                selected = !useDefaultSnoozeLength && customSnoozeMinutes == minutes,
+                                selected = !useDefaultSnoozeLength && !isCustomSnooze && customSnoozeMinutes == minutes,
                                 onClick = {
                                     useDefaultSnoozeLength = false
                                     customSnoozeMinutes = minutes
@@ -262,6 +281,19 @@ fun AlarmEditDialog(
                                 label = { Text("${minutes}m") }
                             )
                         }
+                        FilterChip(
+                            selected = isCustomSnooze,
+                            onClick = { showCustomSnoozeDialog = true },
+                            label = {
+                                Text(
+                                    if (isCustomSnooze) {
+                                        TimeUtils.formatSnoozeDuration(customSnoozeMinutes)
+                                    } else {
+                                        "Custom"
+                                    }
+                                )
+                            }
+                        )
                     }
                 }
             }

@@ -49,6 +49,25 @@ object TimeUtils {
         }
     }
 
+    fun formatSnoozeDuration(minutes: Int): String {
+        val hours = minutes / 60
+        val mins = minutes % 60
+        return when {
+            hours > 0 && mins > 0 ->
+                "${formatSnoozeUnit(hours, "hour")} ${formatSnoozeUnit(mins, "minute")}"
+            hours > 0 -> formatSnoozeUnit(hours, "hour")
+            else -> formatSnoozeUnit(mins, "minute")
+        }
+    }
+
+    private fun formatSnoozeUnit(value: Int, unit: String): String {
+        val label = if (value == 1) unit else "${unit}s"
+        return "$value $label"
+    }
+
+    fun snoozeMinutesFromDurationSeconds(totalSeconds: Int): Int =
+        ((totalSeconds + 59) / 60).coerceAtLeast(1)
+
     fun formatStopwatch(ms: Long): String {
         val totalSeconds = ms / 1000
         val minutes = totalSeconds / 60

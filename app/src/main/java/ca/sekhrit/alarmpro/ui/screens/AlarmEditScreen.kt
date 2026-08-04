@@ -53,6 +53,7 @@ import ca.sekhrit.alarmpro.data.RepeatSchedule
 import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.TimePickerStyle
 import ca.sekhrit.alarmpro.ui.components.AlarmSoundPickerRow
+import ca.sekhrit.alarmpro.ui.components.DurationPickerDialog
 import ca.sekhrit.alarmpro.ui.components.WheelTimePicker
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
@@ -102,8 +103,10 @@ fun AlarmEditScreen(
     var createNewGroup by remember(existing?.id) { mutableStateOf(false) }
     var newGroupName by remember(existing?.id) { mutableStateOf("") }
     var customSoundUri by remember(existing?.id) { mutableStateOf(existing?.soundUri) }
+    var showCustomSnoozeDialog by remember { mutableStateOf(false) }
 
     val snoozeLengthOptions = listOf(5, 10, 15, 20, 30, 45, 60)
+    val isCustomSnooze = !useDefaultSnoozeLength && customSnoozeMinutes !in snoozeLengthOptions
     val anchorEpochDay = existing?.repeat?.anchorEpochDay ?: existing?.createdEpochDay ?: LocalDate.now().toEpochDay()
     val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
     val dayValues = listOf(7, 1, 2, 3, 4, 5, 6)
@@ -187,6 +190,21 @@ fun AlarmEditScreen(
             )
         }
         onBack()
+    }
+
+    if (showCustomSnoozeDialog) {
+        DurationPickerDialog(
+            title = "Snooze Duration:",
+            initialTotalSeconds = customSnoozeMinutes * 60,
+            showLabel = false,
+            showSeconds = false,
+            onDismiss = { showCustomSnoozeDialog = false },
+            onConfirm = { totalSeconds, _ ->
+                useDefaultSnoozeLength = false
+                customSnoozeMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)
+                showCustomSnoozeDialog = false
+            }
+        )
     }
 
     Scaffold(
@@ -445,7 +463,13 @@ fun AlarmEditScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Allow snooze")
                         Text(
-                            "Snooze duration: ${if (useDefaultSnoozeLength) "${settings.defaultSnoozeMinutes} minutes" else "$customSnoozeMinutes minutes"}",
+                            "Snooze duration: ${
+                                if (useDefaultSnoozeLength) {
+                                    TimeUtils.formatSnoozeDuration(settings.defaultSnoozeMinutes)
+                                } else {
+                                    TimeUtils.formatSnoozeDuration(customSnoozeMinutes)
+                                }
+                            }",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -462,7 +486,7 @@ fun AlarmEditScreen(
                         )
                         snoozeLengthOptions.forEach { minutes ->
                             FilterChip(
-                                selected = !useDefaultSnoozeLength && customSnoozeMinutes == minutes,
+                                selected = !useDefaultSnoozeLength && !isCustomSnooze && customSnoozeMinutes == minutes,
                                 onClick = {
                                     useDefaultSnoozeLength = false
                                     customSnoozeMinutes = minutes
@@ -470,6 +494,19 @@ fun AlarmEditScreen(
                                 label = { Text("${minutes}m") }
                             )
                         }
+                        FilterChip(
+                            selected = isCustomSnooze,
+                            onClick = { showCustomSnoozeDialog = true },
+                            label = {
+                                Text(
+                                    if (isCustomSnooze) {
+                                        TimeUtils.formatSnoozeDuration(customSnoozeMinutes)
+                                    } else {
+                                        "Custom"
+                                    }
+                                )
+                            }
+                        )
                     }
                 }
 

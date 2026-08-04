@@ -9,6 +9,7 @@ import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.data.TimerState
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
+import ca.sekhrit.alarmpro.receiver.AlarmReceiver
 import ca.sekhrit.alarmpro.util.TimeUtils
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -212,24 +213,23 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
                 NotificationHelper.showActiveTimerNotification(getApplication(), state)
             }
         }
-        val finishedEntries = refreshed.filter { (_, state) ->
-            state.totalSeconds > 0 && state.endTimeMillis > 0L && !state.isActive(now)
-        }
-
-        if (finishedEntries.isEmpty()) {
-            if (refreshed != current) {
-                _activeTimers.value = refreshed
+        val expiredTimerIds = current.values
+            .filter { it.isRunning && it.endTimeMillis in 1..now }
+            .map { it.id }
+        if (expiredTimerIds.isNotEmpty()) {
+            // Trigger the same idempotent completion path as AlarmManager
+            // while the app is alive. This avoids the system's inexact-alarm
+            // batching delay, and cancelling the scheduled alarm prevents a
+            // duplicate alert later.
+            expiredTimerIds.forEach { timerId ->
+                AlarmReceiver.completeTimer(getApplication(), timerId)
             }
             return
         }
 
-        finishedEntries.forEach { (key, state) ->
-            NotificationHelper.cancelTimerNotification(getApplication(), state.id)
-            notificationSeconds.remove(key)
-            refreshed.remove(key)
+        if (refreshed != current) {
+            _activeTimers.value = refreshed
         }
-        _activeTimers.value = refreshed
-        persistActiveTimers()
     }
 
     private fun updateActiveTimer(key: String, state: TimerState) {
@@ -263,7 +263,10 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             return state.copy(isRunning = false, endTimeMillis = 0L)
         }
         val remaining = state.liveRemainingSeconds(now)
-        return if (remaining <= 0) {
+        // Duration display rounds down, so it can show 00:00 for the final
+        // fraction of a second. Keep the ticker alive until the actual end
+        // timestamp, otherwise the immediate completion path is skipped.
+        return if (state.endTimeMillis <= now) {
             state.copy(remainingSeconds = 0, isRunning = false)
         } else {
             state.copy(remainingSeconds = remaining, isRunning = true)

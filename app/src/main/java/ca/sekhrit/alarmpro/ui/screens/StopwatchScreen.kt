@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
+import ca.sekhrit.alarmpro.ui.components.DurationWheel
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.LapEntry

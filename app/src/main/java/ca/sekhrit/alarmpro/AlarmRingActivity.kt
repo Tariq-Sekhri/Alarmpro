@@ -28,6 +28,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +58,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 class AlarmRingActivity : ComponentActivity() {
     private var mediaPlayer: MediaPlayer? = null
@@ -99,11 +105,13 @@ class AlarmRingActivity : ComponentActivity() {
             TYPE_TIMER -> if (label.isBlank()) "Timer" else label
             else -> "Alarm"
         }
-        val timeParts = if (ringType == TYPE_ALARM || ringType == TYPE_PREVIEW) {
-            TimeUtils.formatAlarmTimeParts(LocalTime.of(hour, minute), settings.use24HourFormat)
+        val scheduledTime = LocalTime.of(hour, minute)
+        val scheduledTimeParts = if (ringType == TYPE_ALARM || ringType == TYPE_PREVIEW) {
+            TimeUtils.formatAlarmTimeParts(scheduledTime, settings.use24HourFormat)
         } else {
             null
         }
+        val useLiveClock = ringType == TYPE_ALARM
         val dayLine = LocalDate.now()
             .format(DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()))
             .uppercase(Locale.getDefault())
@@ -112,7 +120,10 @@ class AlarmRingActivity : ComponentActivity() {
             AlarmProTheme {
                 DefaultAlarmRingScreen(
                     headline = headline,
-                    timeParts = timeParts,
+                    useLiveClock = useLiveClock,
+                    use24Hour = settings.use24HourFormat,
+                    scheduledTime = scheduledTime,
+                    scheduledTimeParts = scheduledTimeParts,
                     dayLine = dayLine,
                     showSnooze = (ringType == TYPE_ALARM || ringType == TYPE_PREVIEW) && snoozeAllowed,
                     onSnooze = {
@@ -225,12 +236,37 @@ private val RingButtonSurface = Color(0xFF1B2230)
 @Composable
 private fun DefaultAlarmRingScreen(
     headline: String,
-    timeParts: AlarmTimeParts?,
+    useLiveClock: Boolean,
+    use24Hour: Boolean,
+    scheduledTime: LocalTime,
+    scheduledTimeParts: AlarmTimeParts?,
     dayLine: String,
     showSnooze: Boolean,
     onSnooze: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var now by remember { mutableStateOf(LocalTime.now()) }
+    LaunchedEffect(useLiveClock) {
+        if (!useLiveClock) return@LaunchedEffect
+        while (true) {
+            now = LocalTime.now()
+            delay(1000)
+        }
+    }
+
+    val displayTimeParts = if (useLiveClock) {
+        TimeUtils.formatAlarmTimeParts(now, use24Hour)
+    } else {
+        scheduledTimeParts
+    }
+    val showScheduledTime = useLiveClock &&
+        (now.hour != scheduledTime.hour || now.minute != scheduledTime.minute)
+    val scheduledTimeText = if (showScheduledTime) {
+        TimeUtils.formatTime(scheduledTime, use24Hour)
+    } else {
+        null
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -253,10 +289,10 @@ private fun DefaultAlarmRingScreen(
                 textAlign = TextAlign.Center
             )
 
-            if (timeParts != null) {
+            if (displayTimeParts != null) {
                 Spacer(modifier = Modifier.height(28.dp))
                 Text(
-                    text = timeParts.time,
+                    text = displayTimeParts.time,
                     fontFamily = FontFamily.SansSerif,
                     fontWeight = FontWeight.Thin,
                     fontSize = 96.sp,
@@ -264,7 +300,7 @@ private fun DefaultAlarmRingScreen(
                     color = Color.White,
                     textAlign = TextAlign.Center
                 )
-                timeParts.period?.let { period ->
+                displayTimeParts.period?.let { period ->
                     Text(
                         text = period,
                         fontFamily = FontFamily.SansSerif,
@@ -277,7 +313,19 @@ private fun DefaultAlarmRingScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(if (timeParts?.period != null) 10.dp else 14.dp))
+            scheduledTimeText?.let { scheduledText ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = scheduledText,
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 14.sp,
+                    color = RingMuted.copy(alpha = 0.65f),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Spacer(modifier = Modifier.height(if (displayTimeParts?.period != null) 10.dp else 14.dp))
             Text(
                 text = dayLine,
                 fontFamily = FontFamily.SansSerif,

@@ -16,6 +16,7 @@ import ca.sekhrit.alarmpro.util.AlarmGrouping
 import ca.sekhrit.alarmpro.util.AlarmSoundUtils
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.service.AlarmRingingService
+import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
 
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -124,19 +125,47 @@ class AlarmReceiver : BroadcastReceiver() {
 
     private fun handleTimer(context: Context, intent: Intent) {
         val timerId = intent.getStringExtra(TimerScheduler.EXTRA_TIMER_ID) ?: return
-        val timer = TimerRepository(context).loadAll().find { it.id == timerId } ?: run {
-            TimerScheduler(context).cancel(timerId)
-            NotificationHelper.cancelTimerNotification(context, timerId)
-            return
-        }
-        val label = timer.label
-        val totalSeconds = timer.totalSeconds
-        NotificationHelper.cancelTimerNotification(context, timerId)
-        TimerRepository(context).removeTimer(timerId)
-        AlarmRingingService.startTimer(context, timerId, label, totalSeconds)
+        completeTimer(context, timerId)
     }
 
     companion object {
+        private val timerCompletionLock = Any()
+
+        /**
+         * Claims a completed timer before starting its alert. Both the exact
+         * alarm and the foreground countdown ticker use this path, so the
+         * ticker can alert immediately without a delayed alarm firing twice.
+         */
+        fun completeTimer(context: Context, timerId: String) {
+            synchronized(timerCompletionLock) {
+                val repository = TimerRepository(context)
+                val timer = repository.loadAll().find { it.id == timerId } ?: run {
+                    TimerScheduler(context).cancel(timerId)
+                    NotificationHelper.cancelTimerNotification(context, timerId)
+                    return
+                }
+                val label = timer.label
+                val totalSeconds = timer.totalSeconds
+                TimerScheduler(context).cancel(timerId)
+                NotificationHelper.cancelTimerNotification(context, timerId)
+                repository.removeTimer(timerId)
+                TimerViewModel.instance()?.syncFromStorage()
+                AlarmRingingService.startTimer(context, timerId, label, totalSeconds)
+                runCatching {
+                    context.startActivity(
+                        Intent(context, AlarmRingActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_TIMER)
+                            putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
+                            putExtra(AlarmRingActivity.EXTRA_LABEL, label)
+                            putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
+                        }
+                    )
+                }
+            }
+        }
+
         const val ACTION_DISMISS_ALARM = "ca.sekhrit.alarmpro.DISMISS_ALARM"
         const val ACTION_SNOOZE_ALARM = "ca.sekhrit.alarmpro.SNOOZE_ALARM"
         const val ACTION_CANCEL_ALARM = "ca.sekhrit.alarmpro.CANCEL_ALARM"
