@@ -5,5 +5,6 @@ import java.util.UUID
 data class TimerPreset(
     val id: String = UUID.randomUUID().toString(),
     val totalSeconds: Int,
-    val label: String = ""
+    val label: String = "",
+    val groupId: String? = null
 )

@@ -3,6 +3,8 @@ package ca.sekhrit.alarmpro.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import ca.sekhrit.alarmpro.data.TimerGroup
+import ca.sekhrit.alarmpro.data.TimerGroupRepository
 import ca.sekhrit.alarmpro.data.TimerPreset
 import ca.sekhrit.alarmpro.data.TimerPresetRepository
 import ca.sekhrit.alarmpro.data.TimerRepository
@@ -24,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference
 class TimerViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = TimerRepository(application)
     private val presetRepository = TimerPresetRepository(application)
+    private val groupRepository = TimerGroupRepository(application)
     private val scheduler = TimerScheduler(application)
 
     private val _activeTimers = MutableStateFlow<Map<String, TimerState>>(emptyMap())
@@ -31,6 +34,9 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _presets = MutableStateFlow(presetRepository.loadPresets())
     val presets: StateFlow<List<TimerPreset>> = _presets.asStateFlow()
+
+    private val _groups = MutableStateFlow(groupRepository.loadGroups())
+    val groups: StateFlow<List<TimerGroup>> = _groups.asStateFlow()
 
     private val _clockMillis = MutableStateFlow(System.currentTimeMillis())
     val clockMillis: StateFlow<Long> = _clockMillis.asStateFlow()
@@ -48,6 +54,8 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         val refreshed = repository.loadAll().map { refreshState(it) }
         _activeTimers.value = refreshed.associateBy { timerKey(it) }
         _presets.value = presetRepository.loadPresets()
+        _groups.value = groupRepository.loadGroups()
+        cleanupEmptyGroups()
         ensureTicker()
     }
 
@@ -282,6 +290,95 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             state.copy(remainingSeconds = remaining, isRunning = true)
         }
+    }
+
+    private fun persistGroups(groups: List<TimerGroup>) {
+        _groups.value = groups
+        groupRepository.saveGroups(groups)
+    }
+
+    private fun cleanupEmptyGroups() {
+        val usedGroupIds = _presets.value.mapNotNull { it.groupId }.toSet()
+        val cleaned = _groups.value.filter { it.id in usedGroupIds }
+        if (cleaned.size != _groups.value.size) {
+            persistGroups(cleaned)
+        }
+    }
+
+    fun createGroup(label: String): TimerGroup {
+        val trimmed = label.trim().takeIf { it.isNotBlank() } ?: "Timer Group"
+        val nextOrder = (_groups.value.maxOfOrNull { it.sortOrder } ?: -1) + 1
+        val group = TimerGroup(label = trimmed, sortOrder = nextOrder)
+        persistGroups(_groups.value + group)
+        return group
+    }
+
+    fun renameGroup(groupId: String, label: String) {
+        val trimmed = label.trim().takeIf { it.isNotBlank() } ?: return
+        persistGroups(_groups.value.map { if (it.id == groupId) it.copy(label = trimmed) else it })
+    }
+
+    fun deleteGroup(groupId: String) {
+        persistGroups(_groups.value.filter { it.id != groupId })
+        cleanupEmptyGroups()
+    }
+
+    fun ungroupGroup(groupId: String) {
+        persistGroups(_groups.value.filter { it.id != groupId })
+        val updated = _presets.value.map { if (it.groupId == groupId) it.copy(groupId = null) else it }
+        _presets.value = updated
+        presetRepository.savePresets(updated)
+    }
+
+    fun toggleGroupCollapsed(groupId: String) {
+        persistGroups(
+            _groups.value.map {
+                if (it.id == groupId) it.copy(isCollapsed = !it.isCollapsed) else it
+            }
+        )
+    }
+
+    fun assignPresetToGroup(presetId: String, groupId: String?) {
+        val updated = _presets.value.map {
+            if (it.id == presetId) it.copy(groupId = groupId) else it
+        }
+        _presets.value = updated
+        presetRepository.savePresets(updated)
+        cleanupEmptyGroups()
+    }
+
+    fun removePresetFromGroup(presetId: String) {
+        assignPresetToGroup(presetId, null)
+    }
+
+    fun assignPresetsToGroup(presetIds: Set<String>, groupId: String) {
+        persistGroups(
+            _groups.value.map {
+                if (it.id == groupId) it.copy(isCollapsed = false) else it
+            }
+        )
+        val updated = _presets.value.map { preset ->
+            if (preset.id in presetIds) preset.copy(groupId = groupId) else preset
+        }
+        _presets.value = updated
+        presetRepository.savePresets(updated)
+        cleanupEmptyGroups()
+    }
+
+    fun groupPresets(presetIds: Set<String>, groupLabel: String): TimerGroup {
+        val group = createGroup(groupLabel)
+        persistGroups(
+            _groups.value.map {
+                if (it.id == group.id) it.copy(isCollapsed = false) else it
+            }
+        )
+        val updated = _presets.value.map { preset ->
+            if (preset.id in presetIds) preset.copy(groupId = group.id) else preset
+        }
+        _presets.value = updated
+        presetRepository.savePresets(updated)
+        cleanupEmptyGroups()
+        return group
     }
 
     override fun onCleared() {

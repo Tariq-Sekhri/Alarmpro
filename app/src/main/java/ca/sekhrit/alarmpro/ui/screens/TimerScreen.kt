@@ -1,10 +1,11 @@
 package ca.sekhrit.alarmpro.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,19 +16,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -35,19 +40,20 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.TimerOff
 import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -57,31 +63,14 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.TimerPreset
 import ca.sekhrit.alarmpro.data.TimerControlStyle
@@ -91,10 +80,9 @@ import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 import ca.sekhrit.alarmpro.ui.theme.ElevatedSurface
 import ca.sekhrit.alarmpro.util.TimeUtils
-import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
+import ca.sekhrit.alarmpro.util.TimerGrouping
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
+import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -107,26 +95,39 @@ fun TimerScreen(
 ) {
     val activeTimers by viewModel.activeTimers.collectAsState()
     val presets by viewModel.presets.collectAsState()
+    val groups by viewModel.groups.collectAsState()
     val clockMillis by viewModel.clockMillis.collectAsState()
     val settings by settingsViewModel.settings.collectAsState()
+
     var showAddDialog by remember { mutableStateOf(false) }
     var editPreset by remember { mutableStateOf<TimerPreset?>(null) }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(emptySet<String>()) }
     var showSortMenu by remember { mutableStateOf(false) }
+    
+    var showGroupDialog by remember { mutableStateOf(false) }
+    var groupLabelInput by remember { mutableStateOf("") }
+    
+    var renameGroupId by remember { mutableStateOf<String?>(null) }
+    var renameGroupLabel by remember { mutableStateOf("") }
 
-    val sortedPresets = remember(presets, settings.timerSortMode) {
-        when (settings.timerSortMode) {
-            TimerSortMode.TIME_ASC -> presets.sortedBy { it.totalSeconds }
-            TimerSortMode.TIME_DESC -> presets.sortedByDescending { it.totalSeconds }
-            TimerSortMode.MANUAL -> presets
-        }
+    val listEntries = remember(presets, groups, activeTimers, clockMillis, settings.timerSortMode, settings.activeTimersFirst) {
+        TimerGrouping.buildListEntries(
+            presets = presets,
+            groups = groups,
+            activeTimers = activeTimers,
+            clockMillis = clockMillis,
+            sortMode = settings.timerSortMode,
+            activeTimersFirst = settings.activeTimersFirst
+        )
     }
 
     val listState = rememberLazyListState()
     val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
-        val fromPreset = presets.find { it.id == from.key }
-        val toPreset = presets.find { it.id == to.key }
+        val fromId = (from.key as? String)?.removePrefix("preset_")
+        val toId = (to.key as? String)?.removePrefix("preset_")
+        val fromPreset = presets.find { it.id == fromId }
+        val toPreset = presets.find { it.id == toId }
         if (fromPreset != null && toPreset != null) {
             viewModel.movePreset(presets.indexOf(fromPreset), presets.indexOf(toPreset))
         }
@@ -182,6 +183,61 @@ fun TimerScreen(
         )
     }
 
+    if (showGroupDialog) {
+        AlertDialog(
+            onDismissRequest = { showGroupDialog = false },
+            title = { Text("Create group") },
+            text = {
+                OutlinedTextField(
+                    value = groupLabelInput,
+                    onValueChange = { groupLabelInput = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (selectedIds.isNotEmpty()) {
+                            viewModel.groupPresets(selectedIds, groupLabelInput)
+                        }
+                        showGroupDialog = false
+                        exitSelectionMode()
+                    }
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGroupDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    renameGroupId?.let { groupId ->
+        AlertDialog(
+            onDismissRequest = { renameGroupId = null },
+            title = { Text("Rename group") },
+            text = {
+                OutlinedTextField(
+                    value = renameGroupLabel,
+                    onValueChange = { renameGroupLabel = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.renameGroup(groupId, renameGroupLabel)
+                        renameGroupId = null
+                    }
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameGroupId = null }) { Text("Cancel") }
+            }
+        )
+    }
+
     val isActive = activeTimers.values.any { it.isActive(clockMillis) }
     val nextHeader = remember(clockMillis, activeTimers) { viewModel.nextTimerHeader }
 
@@ -208,6 +264,15 @@ fun TimerScreen(
                     if (selectionMode) {
                         IconButton(
                             onClick = {
+                                groupLabelInput = ""
+                                showGroupDialog = true
+                            },
+                            enabled = selectedIds.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.Folder, contentDescription = "Group selected")
+                        }
+                        IconButton(
+                            onClick = {
                                 viewModel.deletePresets(selectedIds)
                                 exitSelectionMode()
                             },
@@ -224,6 +289,21 @@ fun TimerScreen(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false }
                             ) {
+                                DropdownMenuItem(
+                                    text = { Text("Active Timers First") },
+                                    onClick = {
+                                        settingsViewModel.updateSettings(
+                                            settings.copy(activeTimersFirst = !settings.activeTimersFirst)
+                                        )
+                                        showSortMenu = false
+                                    },
+                                    trailingIcon = {
+                                        if (settings.activeTimersFirst) {
+                                            Icon(Icons.Default.Check, contentDescription = "Checked")
+                                        }
+                                    }
+                                )
+                                HorizontalDivider()
                                 DropdownMenuItem(
                                     text = { Text("Manual (Drag to reorder)") },
                                     onClick = {
@@ -300,31 +380,208 @@ fun TimerScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            items(sortedPresets, key = { it.id }) { preset ->
-                ReorderableItem(reorderableState, key = preset.id) { isDragging ->
-                    val timer = activeTimers[preset.id]
-                    val isRunningPreset = timer != null && timer.isActive(clockMillis)
-                    val remainingSeconds = timer?.liveRemainingSeconds(clockMillis) ?: preset.totalSeconds
-                    TimerPresetCard(
-                        preset = preset,
-                        isRunning = isRunningPreset,
-                        displaySeconds = remainingSeconds,
-                        progress = if (isRunningPreset && timer.totalSeconds > 0) {
-                            1f - (remainingSeconds.toFloat() / timer.totalSeconds.toFloat())
-                        } else {
-                            0f
+            items(
+                items = listEntries,
+                key = { entry ->
+                    when (entry) {
+                        is TimerGrouping.ListEntry.GroupHeader -> "group_${entry.group.id}"
+                        is TimerGrouping.ListEntry.PresetRow -> "preset_${entry.preset.id}"
+                    }
+                }
+            ) { entry ->
+                when (entry) {
+                    is TimerGrouping.ListEntry.GroupHeader -> {
+                        val groupPresetIds = entry.presets.map { it.id }.toSet()
+                        TimerGroupHeaderCard(
+                            header = entry,
+                            selectionMode = selectionMode,
+                            groupSelected = groupPresetIds.isNotEmpty() && groupPresetIds.all { it in selectedIds },
+                            onToggleExpand = {
+                                if (!selectionMode) {
+                                    viewModel.toggleGroupCollapsed(entry.group.id)
+                                }
+                            },
+                            onRename = {
+                                renameGroupLabel = entry.group.label
+                                renameGroupId = entry.group.id
+                            },
+                            onUngroup = {
+                                viewModel.ungroupGroup(entry.group.id)
+                            },
+                            onDeleteGroup = {
+                                viewModel.deleteGroup(entry.group.id)
+                                viewModel.deletePresets(entry.presets.map { it.id }.toSet())
+                            },
+                            onLongPress = {
+                                if (!selectionMode) {
+                                    selectedIds = groupPresetIds
+                                    selectionMode = true
+                                }
+                            },
+                            onClick = {
+                                if (selectionMode) {
+                                    if (groupPresetIds.all { it in selectedIds }) {
+                                        selectedIds = selectedIds - groupPresetIds
+                                        if (selectedIds.isEmpty()) selectionMode = false
+                                    } else {
+                                        selectedIds = selectedIds + groupPresetIds
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    is TimerGrouping.ListEntry.PresetRow -> {
+                        ReorderableItem(reorderableState, key = "preset_${entry.preset.id}") { isDragging ->
+                            val timer = activeTimers[entry.preset.id]
+                            val isRunningPreset = timer != null && timer.isActive(clockMillis)
+                            val remainingSeconds = timer?.liveRemainingSeconds(clockMillis) ?: entry.preset.totalSeconds
+                            TimerPresetCard(
+                                preset = entry.preset,
+                                group = entry.group,
+                                indexInGroup = entry.indexInGroup,
+                                isRunning = isRunningPreset,
+                                displaySeconds = remainingSeconds,
+                                progress = if (isRunningPreset && timer.totalSeconds > 0) {
+                                    1f - (remainingSeconds.toFloat() / timer.totalSeconds.toFloat())
+                                } else {
+                                    0f
+                                },
+                                onRestart = { viewModel.restartPreset(entry.preset) },
+                                onToggle = { enabled -> viewModel.togglePreset(entry.preset, enabled) },
+                                usePlayPauseButton = settings.timerControlStyle == TimerControlStyle.PLAY_PAUSE_BUTTON,
+                                onEdit = { editPreset = entry.preset },
+                                onDelete = { viewModel.deletePreset(entry.preset) },
+                                onRemoveFromGroup = { viewModel.removePresetFromGroup(entry.preset.id) },
+                                selectionMode = selectionMode,
+                                selected = entry.preset.id in selectedIds,
+                                onToggleSelection = { toggleSelected(entry.preset.id) },
+                                onEnterSelection = { enterSelectionMode(entry.preset.id) },
+                                sortMode = settings.timerSortMode,
+                                dragModifier = Modifier.draggableHandle()
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun TimerGroupHeaderCard(
+    header: TimerGrouping.ListEntry.GroupHeader,
+    selectionMode: Boolean,
+    groupSelected: Boolean,
+    onToggleExpand: () -> Unit,
+    onRename: () -> Unit,
+    onUngroup: () -> Unit,
+    onDeleteGroup: () -> Unit,
+    onLongPress: () -> Unit,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    var showMenu by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .clip(shape)
+            .background(
+                if (groupSelected) CardSurface.copy(alpha = 0.9f) else CardSurface
+            )
+            .then(
+                if (groupSelected) {
+                    Modifier.border(2.dp, ElectricCyan, shape)
+                } else {
+                    Modifier
+                }
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongPress
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (selectionMode) {
+            Checkbox(
+                checked = groupSelected,
+                onCheckedChange = { onClick() }
+            )
+        } else {
+            IconButton(onClick = onToggleExpand) {
+                Icon(
+                    imageVector = if (header.group.isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                    contentDescription = if (header.group.isCollapsed) "Expand group" else "Collapse group"
+                )
+            }
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Folder,
+                    contentDescription = null,
+                    tint = ElectricCyan,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = header.group.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(
+                text = buildString {
+                    append("${header.presets.size} timers")
+                    if (header.group.isCollapsed) append(" · collapsed")
+                    if (header.isActive) append(" · active")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (!selectionMode) {
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Group options")
+                }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Rename group") },
+                        onClick = {
+                            showMenu = false
+                            onRename()
                         },
-                        onRestart = { viewModel.restartPreset(preset) },
-                        onToggle = { enabled -> viewModel.togglePreset(preset, enabled) },
-                        usePlayPauseButton = settings.timerControlStyle == TimerControlStyle.PLAY_PAUSE_BUTTON,
-                        onEdit = { editPreset = preset },
-                        onDelete = { viewModel.deletePreset(preset) },
-                        selectionMode = selectionMode,
-                        selected = preset.id in selectedIds,
-                        onToggleSelection = { toggleSelected(preset.id) },
-                        onEnterSelection = { enterSelectionMode(preset.id) },
-                        sortMode = settings.timerSortMode,
-                        dragModifier = Modifier.draggableHandle()
+                        leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Ungroup timers") },
+                        onClick = {
+                            showMenu = false
+                            onUngroup()
+                        },
+                        leadingIcon = { Icon(Icons.Default.FolderOff, contentDescription = null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete group") },
+                        onClick = {
+                            showMenu = false
+                            onDeleteGroup()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     )
                 }
             }
@@ -336,6 +593,8 @@ fun TimerScreen(
 @Composable
 private fun TimerPresetCard(
     preset: TimerPreset,
+    group: ca.sekhrit.alarmpro.data.TimerGroup?,
+    indexInGroup: Int?,
     isRunning: Boolean,
     displaySeconds: Int,
     progress: Float,
@@ -344,6 +603,7 @@ private fun TimerPresetCard(
     usePlayPauseButton: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onRemoveFromGroup: () -> Unit,
     selectionMode: Boolean,
     selected: Boolean,
     onToggleSelection: () -> Unit,
@@ -359,6 +619,9 @@ private fun TimerPresetCard(
             .padding(vertical = 6.dp)
             .clip(shape)
             .background(if (isRunning) CardSurface else ElevatedSurface.copy(alpha = 0.75f))
+            .then(
+                if (selected) Modifier.border(2.dp, ElectricCyan, shape) else Modifier
+            )
             .combinedClickable(
                 onClick = { if (selectionMode) onToggleSelection() else onEdit() },
                 onLongClick = {
@@ -372,7 +635,7 @@ private fun TimerPresetCard(
                 .padding(horizontal = 12.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (sortMode == TimerSortMode.MANUAL && !selectionMode) {
+            if (sortMode == TimerSortMode.MANUAL && !selectionMode && group == null) {
                 Icon(
                     Icons.Default.DragHandle,
                     contentDescription = "Reorder",
@@ -404,9 +667,10 @@ private fun TimerPresetCard(
                         }
                     )
                 )
-                if (preset.label.isNotBlank()) {
+                val displayLabel = TimerGrouping.effectiveLabel(preset, group, indexInGroup)
+                if (displayLabel.isNotBlank()) {
                     Text(
-                        text = preset.label,
+                        text = displayLabel,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -432,11 +696,46 @@ private fun TimerPresetCard(
                         )
                     )
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit timer")
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete timer")
+                
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Timer options")
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Edit timer") },
+                            onClick = {
+                                showMenu = false
+                                onEdit()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                        )
+                        if (group != null) {
+                            DropdownMenuItem(
+                                text = { Text("Remove from group") },
+                                onClick = {
+                                    showMenu = false
+                                    onRemoveFromGroup()
+                                },
+                                leadingIcon = { Icon(Icons.Default.FolderOff, contentDescription = null) }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Delete timer") },
+                            onClick = {
+                                showMenu = false
+                                onDelete()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }

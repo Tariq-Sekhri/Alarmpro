@@ -33,6 +33,7 @@ data class AppSettings(
     val timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
     val timerControlStyle: TimerControlStyle = TimerControlStyle.SWITCH,
     val timerSortMode: TimerSortMode = TimerSortMode.MANUAL,
+    val activeTimersFirst: Boolean = false,
     val silentNotifications: Boolean = false,
     val defaultAlarmSortMode: AlarmSortMode = AlarmSortMode.TIME_OF_DAY,
     val activeAlarmsFirst: Boolean = false
