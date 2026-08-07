@@ -170,6 +170,15 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         presetRepository.savePresets(currentList)
     }
 
+    fun moveGroup(from: Int, to: Int) {
+        val current = _groups.value.sortedBy { it.sortOrder }.toMutableList()
+        if (from !in current.indices || to !in current.indices) return
+        val item = current.removeAt(from)
+        current.add(to, item)
+        val updated = current.mapIndexed { index, group -> group.copy(sortOrder = index) }
+        persistGroups(updated)
+    }
+
     fun deletePreset(preset: TimerPreset) {
         deletePresets(setOf(preset.id))
     }

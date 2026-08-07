@@ -124,12 +124,25 @@ fun TimerScreen(
 
     val listState = rememberLazyListState()
     val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
-        val fromId = (from.key as? String)?.removePrefix("preset_")
-        val toId = (to.key as? String)?.removePrefix("preset_")
-        val fromPreset = presets.find { it.id == fromId }
-        val toPreset = presets.find { it.id == toId }
-        if (fromPreset != null && toPreset != null) {
-            viewModel.movePreset(presets.indexOf(fromPreset), presets.indexOf(toPreset))
+        val fromKey = from.key as? String ?: return@rememberReorderableLazyListState
+        val toKey = to.key as? String ?: return@rememberReorderableLazyListState
+        
+        if (fromKey.startsWith("group_") && toKey.startsWith("group_")) {
+            val fromId = fromKey.removePrefix("group_")
+            val toId = toKey.removePrefix("group_")
+            val fromGroup = groups.find { it.id == fromId }
+            val toGroup = groups.find { it.id == toId }
+            if (fromGroup != null && toGroup != null) {
+                viewModel.moveGroup(groups.indexOf(fromGroup), groups.indexOf(toGroup))
+            }
+        } else if (fromKey.startsWith("preset_") && toKey.startsWith("preset_")) {
+            val fromId = fromKey.removePrefix("preset_")
+            val toId = toKey.removePrefix("preset_")
+            val fromPreset = presets.find { it.id == fromId }
+            val toPreset = presets.find { it.id == toId }
+            if (fromPreset != null && toPreset != null) {
+                viewModel.movePreset(presets.indexOf(fromPreset), presets.indexOf(toPreset))
+            }
         }
     }
 
@@ -392,43 +405,47 @@ fun TimerScreen(
                 when (entry) {
                     is TimerGrouping.ListEntry.GroupHeader -> {
                         val groupPresetIds = entry.presets.map { it.id }.toSet()
-                        TimerGroupHeaderCard(
-                            header = entry,
-                            selectionMode = selectionMode,
-                            groupSelected = groupPresetIds.isNotEmpty() && groupPresetIds.all { it in selectedIds },
-                            onToggleExpand = {
-                                if (!selectionMode) {
-                                    viewModel.toggleGroupCollapsed(entry.group.id)
-                                }
-                            },
-                            onRename = {
-                                renameGroupLabel = entry.group.label
-                                renameGroupId = entry.group.id
-                            },
-                            onUngroup = {
-                                viewModel.ungroupGroup(entry.group.id)
-                            },
-                            onDeleteGroup = {
-                                viewModel.deleteGroup(entry.group.id)
-                                viewModel.deletePresets(entry.presets.map { it.id }.toSet())
-                            },
-                            onLongPress = {
-                                if (!selectionMode) {
-                                    selectedIds = groupPresetIds
-                                    selectionMode = true
-                                }
-                            },
-                            onClick = {
-                                if (selectionMode) {
-                                    if (groupPresetIds.all { it in selectedIds }) {
-                                        selectedIds = selectedIds - groupPresetIds
-                                        if (selectedIds.isEmpty()) selectionMode = false
-                                    } else {
-                                        selectedIds = selectedIds + groupPresetIds
+                        ReorderableItem(reorderableState, key = "group_${entry.group.id}") { isDragging ->
+                            TimerGroupHeaderCard(
+                                header = entry,
+                                selectionMode = selectionMode,
+                                groupSelected = groupPresetIds.isNotEmpty() && groupPresetIds.all { it in selectedIds },
+                                onToggleExpand = {
+                                    if (!selectionMode) {
+                                        viewModel.toggleGroupCollapsed(entry.group.id)
                                     }
-                                }
-                            }
-                        )
+                                },
+                                onRename = {
+                                    renameGroupLabel = entry.group.label
+                                    renameGroupId = entry.group.id
+                                },
+                                onUngroup = {
+                                    viewModel.ungroupGroup(entry.group.id)
+                                },
+                                onDeleteGroup = {
+                                    viewModel.deleteGroup(entry.group.id)
+                                    viewModel.deletePresets(entry.presets.map { it.id }.toSet())
+                                },
+                                onLongPress = {
+                                    if (!selectionMode) {
+                                        selectedIds = groupPresetIds
+                                        selectionMode = true
+                                    }
+                                },
+                                onClick = {
+                                    if (selectionMode) {
+                                        if (groupPresetIds.all { it in selectedIds }) {
+                                            selectedIds = selectedIds - groupPresetIds
+                                            if (selectedIds.isEmpty()) selectionMode = false
+                                        } else {
+                                            selectedIds = selectedIds + groupPresetIds
+                                        }
+                                    }
+                                },
+                                sortMode = settings.timerSortMode,
+                                dragModifier = Modifier.draggableHandle()
+                            )
+                        }
                     }
                     is TimerGrouping.ListEntry.PresetRow -> {
                         ReorderableItem(reorderableState, key = "preset_${entry.preset.id}") { isDragging ->
@@ -479,7 +496,9 @@ private fun TimerGroupHeaderCard(
     onUngroup: () -> Unit,
     onDeleteGroup: () -> Unit,
     onLongPress: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    sortMode: TimerSortMode,
+    dragModifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(16.dp)
     var showMenu by remember { mutableStateOf(false) }
@@ -506,6 +525,14 @@ private fun TimerGroupHeaderCard(
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (sortMode == TimerSortMode.MANUAL && !selectionMode) {
+            Icon(
+                Icons.Default.DragHandle,
+                contentDescription = "Reorder",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = dragModifier.padding(end = 8.dp)
+            )
+        }
         if (selectionMode) {
             Checkbox(
                 checked = groupSelected,

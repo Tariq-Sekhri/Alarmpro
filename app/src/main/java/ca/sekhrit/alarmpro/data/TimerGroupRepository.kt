@@ -22,7 +22,7 @@ class TimerGroupRepository(context: Context) {
                     )
                 )
             }
-        }
+        }.sortedBy { it.sortOrder }
     }
 
     fun saveGroups(groups: List<TimerGroup>) {
