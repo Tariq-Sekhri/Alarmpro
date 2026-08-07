@@ -127,11 +127,17 @@ fun TimerScreen(
         val fromKey = from.key as? String ?: return@rememberReorderableLazyListState
         val toKey = to.key as? String ?: return@rememberReorderableLazyListState
         
-        if (fromKey.startsWith("group_") && toKey.startsWith("group_")) {
-            val fromId = fromKey.removePrefix("group_")
-            val toId = toKey.removePrefix("group_")
-            val fromGroup = groups.find { it.id == fromId }
-            val toGroup = groups.find { it.id == toId }
+        val fromGroupId = if (fromKey.startsWith("group_")) fromKey.removePrefix("group_") else null
+        val toGroupId = if (toKey.startsWith("group_")) {
+            toKey.removePrefix("group_")
+        } else if (toKey.startsWith("preset_")) {
+            val pId = toKey.removePrefix("preset_")
+            presets.find { it.id == pId }?.groupId
+        } else null
+
+        if (fromGroupId != null && toGroupId != null && fromGroupId != toGroupId) {
+            val fromGroup = groups.find { it.id == fromGroupId }
+            val toGroup = groups.find { it.id == toGroupId }
             if (fromGroup != null && toGroup != null) {
                 viewModel.moveGroup(groups.indexOf(fromGroup), groups.indexOf(toGroup))
             }
@@ -140,7 +146,7 @@ fun TimerScreen(
             val toId = toKey.removePrefix("preset_")
             val fromPreset = presets.find { it.id == fromId }
             val toPreset = presets.find { it.id == toId }
-            if (fromPreset != null && toPreset != null) {
+            if (fromPreset != null && toPreset != null && fromPreset.groupId == toPreset.groupId) {
                 viewModel.movePreset(presets.indexOf(fromPreset), presets.indexOf(toPreset))
             }
         }

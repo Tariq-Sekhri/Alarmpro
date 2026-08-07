@@ -13,9 +13,7 @@ object TimerGrouping {
     }
 
     fun membersOf(groupId: String, presets: List<TimerPreset>): List<TimerPreset> =
-        presets
-            .filter { it.groupId == groupId }
-            .sortedBy { it.totalSeconds }
+        presets.filter { it.groupId == groupId }
 
     fun indexInGroup(preset: TimerPreset, groupPresets: List<TimerPreset>): Int? {
         if (preset.groupId == null) return null
