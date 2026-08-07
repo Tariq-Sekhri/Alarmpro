@@ -6,5 +6,6 @@ data class TimerPreset(
     val id: String = UUID.randomUUID().toString(),
     val totalSeconds: Int,
     val label: String = "",
-    val groupId: String? = null
+    val groupId: String? = null,
+    val sortOrder: Int = 0
 )

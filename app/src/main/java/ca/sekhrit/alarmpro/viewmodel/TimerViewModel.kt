@@ -159,24 +159,83 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
         updateActiveTimer(preset.id, active.copy(label = displayLabel))
     }
 
-    fun movePreset(fromIndex: Int, toIndex: Int) {
-        val currentList = _presets.value.toMutableList()
-        if (fromIndex !in currentList.indices || toIndex !in currentList.indices) return
+    fun moveRootItem(fromKey: String, toKey: String) {
+        val groups = _groups.value
+        val ungroupedPresets = _presets.value.filter { it.groupId == null }
         
-        val item = currentList.removeAt(fromIndex)
-        currentList.add(toIndex, item)
+        val unifiedList = mutableListOf<Any>()
+        unifiedList.addAll(groups)
+        unifiedList.addAll(ungroupedPresets)
+        unifiedList.sortBy {
+            when (it) {
+                is TimerGroup -> it.sortOrder
+                is TimerPreset -> it.sortOrder
+                else -> 0
+            }
+        }
         
-        _presets.value = currentList
-        presetRepository.savePresets(currentList)
+        val fromIndex = unifiedList.indexOfFirst {
+            when (it) {
+                is TimerGroup -> "group_${it.id}" == fromKey
+                is TimerPreset -> "preset_${it.id}" == fromKey
+                else -> false
+            }
+        }
+        val toIndex = unifiedList.indexOfFirst {
+            when (it) {
+                is TimerGroup -> "group_${it.id}" == toKey
+                is TimerPreset -> "preset_${it.id}" == toKey
+                else -> false
+            }
+        }
+        
+        if (fromIndex == -1 || toIndex == -1) return
+        
+        val item = unifiedList.removeAt(fromIndex)
+        unifiedList.add(toIndex, item)
+        
+        val updatedGroups = mutableListOf<TimerGroup>()
+        val updatedPresets = _presets.value.toMutableList()
+        
+        unifiedList.forEachIndexed { index, any ->
+            when (any) {
+                is TimerGroup -> updatedGroups.add(any.copy(sortOrder = index))
+                is TimerPreset -> {
+                    val originalIndex = updatedPresets.indexOfFirst { it.id == any.id }
+                    if (originalIndex != -1) {
+                        updatedPresets[originalIndex] = updatedPresets[originalIndex].copy(sortOrder = index)
+                    }
+                }
+            }
+        }
+        
+        persistGroups(updatedGroups)
+        
+        _presets.value = updatedPresets
+        presetRepository.savePresets(updatedPresets)
     }
 
-    fun moveGroup(from: Int, to: Int) {
-        val current = _groups.value.sortedBy { it.sortOrder }.toMutableList()
-        if (from !in current.indices || to !in current.indices) return
-        val item = current.removeAt(from)
-        current.add(to, item)
-        val updated = current.mapIndexed { index, group -> group.copy(sortOrder = index) }
-        persistGroups(updated)
+    fun movePresetInsideGroup(groupId: String, fromPresetId: String, toPresetId: String) {
+        val currentPresets = _presets.value.toMutableList()
+        
+        val groupPresets = currentPresets.filter { it.groupId == groupId }.sortedBy { it.sortOrder }.toMutableList()
+        val fromIndex = groupPresets.indexOfFirst { it.id == fromPresetId }
+        val toIndex = groupPresets.indexOfFirst { it.id == toPresetId }
+        
+        if (fromIndex == -1 || toIndex == -1) return
+        
+        val item = groupPresets.removeAt(fromIndex)
+        groupPresets.add(toIndex, item)
+        
+        groupPresets.forEachIndexed { index, preset ->
+            val globalIndex = currentPresets.indexOfFirst { it.id == preset.id }
+            if (globalIndex != -1) {
+                currentPresets[globalIndex] = currentPresets[globalIndex].copy(sortOrder = index)
+            }
+        }
+        
+        _presets.value = currentPresets
+        presetRepository.savePresets(currentPresets)
     }
 
     fun deletePreset(preset: TimerPreset) {

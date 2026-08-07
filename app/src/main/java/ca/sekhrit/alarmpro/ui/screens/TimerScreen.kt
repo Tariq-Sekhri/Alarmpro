@@ -127,28 +127,18 @@ fun TimerScreen(
         val fromKey = from.key as? String ?: return@rememberReorderableLazyListState
         val toKey = to.key as? String ?: return@rememberReorderableLazyListState
         
-        val fromGroupId = if (fromKey.startsWith("group_")) fromKey.removePrefix("group_") else null
-        val toGroupId = if (toKey.startsWith("group_")) {
-            toKey.removePrefix("group_")
-        } else if (toKey.startsWith("preset_")) {
-            val pId = toKey.removePrefix("preset_")
-            presets.find { it.id == pId }?.groupId
-        } else null
-
-        if (fromGroupId != null && toGroupId != null && fromGroupId != toGroupId) {
-            val fromGroup = groups.find { it.id == fromGroupId }
-            val toGroup = groups.find { it.id == toGroupId }
-            if (fromGroup != null && toGroup != null) {
-                viewModel.moveGroup(groups.indexOf(fromGroup), groups.indexOf(toGroup))
+        val fromPreset = if (fromKey.startsWith("preset_")) presets.find { it.id == fromKey.removePrefix("preset_") } else null
+        val toPreset = if (toKey.startsWith("preset_")) presets.find { it.id == toKey.removePrefix("preset_") } else null
+        
+        val isFromRoot = fromKey.startsWith("group_") || (fromPreset != null && fromPreset.groupId == null)
+        
+        if (isFromRoot) {
+            val actualToKey = if (toPreset != null && toPreset.groupId != null) "group_${toPreset.groupId}" else toKey
+            if (fromKey != actualToKey) {
+                viewModel.moveRootItem(fromKey, actualToKey)
             }
-        } else if (fromKey.startsWith("preset_") && toKey.startsWith("preset_")) {
-            val fromId = fromKey.removePrefix("preset_")
-            val toId = toKey.removePrefix("preset_")
-            val fromPreset = presets.find { it.id == fromId }
-            val toPreset = presets.find { it.id == toId }
-            if (fromPreset != null && toPreset != null && fromPreset.groupId == toPreset.groupId) {
-                viewModel.movePreset(presets.indexOf(fromPreset), presets.indexOf(toPreset))
-            }
+        } else if (fromPreset != null && toPreset != null && fromPreset.groupId == toPreset.groupId && fromPreset.groupId != null) {
+            viewModel.movePresetInsideGroup(fromPreset.groupId, fromPreset.id, toPreset.id)
         }
     }
 

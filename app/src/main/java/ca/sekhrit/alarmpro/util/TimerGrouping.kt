@@ -78,6 +78,7 @@ object TimerGrouping {
                     group = group,
                     members = displayMembers,
                     sortKey = sectionSortKey(
+                        group,
                         labelMembers,
                         activeTimers,
                         clockMillis,
@@ -140,7 +141,7 @@ object TimerGrouping {
             when (sortMode) {
                 TimerSortMode.TIME_ASC -> preset.totalSeconds.toLong()
                 TimerSortMode.TIME_DESC -> -preset.totalSeconds.toLong()
-                TimerSortMode.MANUAL -> 0L // Keep stable for manual
+                TimerSortMode.MANUAL -> preset.sortOrder.toLong()
             }
         }
         return presets.sortedWith(
@@ -161,29 +162,37 @@ object TimerGrouping {
         sortMode: TimerSortMode,
         activeTimersFirst: Boolean
     ): Long {
-        val isActive = activeTimers[preset.id]?.isActive(clockMillis) == true
-        if (activeTimersFirst && !isActive) return Long.MAX_VALUE
-        return when (sortMode) {
+        val baseSortKey = when (sortMode) {
             TimerSortMode.TIME_ASC -> preset.totalSeconds.toLong()
             TimerSortMode.TIME_DESC -> -preset.totalSeconds.toLong()
-            TimerSortMode.MANUAL -> 0L
+            TimerSortMode.MANUAL -> preset.sortOrder.toLong()
+        }
+        val isActive = activeTimers[preset.id]?.isActive(clockMillis) == true
+        return if (activeTimersFirst && !isActive) {
+            baseSortKey + 100_000_000_000L
+        } else {
+            baseSortKey
         }
     }
 
     private fun sectionSortKey(
+        group: TimerGroup,
         members: List<TimerPreset>,
         activeTimers: Map<String, TimerState>,
         clockMillis: Long,
         sortMode: TimerSortMode,
         activeTimersFirst: Boolean
     ): Long {
+        val baseSortKey = when (sortMode) {
+            TimerSortMode.TIME_ASC -> members.minOfOrNull { it.totalSeconds.toLong() } ?: 0L
+            TimerSortMode.TIME_DESC -> members.minOfOrNull { -it.totalSeconds.toLong() } ?: 0L
+            TimerSortMode.MANUAL -> group.sortOrder.toLong()
+        }
         val isActive = members.any { activeTimers[it.id]?.isActive(clockMillis) == true }
-        if (activeTimersFirst && !isActive) return Long.MAX_VALUE
-        
-        return when (sortMode) {
-            TimerSortMode.TIME_ASC -> members.minOf { it.totalSeconds.toLong() }
-            TimerSortMode.TIME_DESC -> members.minOf { -it.totalSeconds.toLong() }
-            TimerSortMode.MANUAL -> 0L
+        return if (activeTimersFirst && !isActive) {
+            baseSortKey + 100_000_000_000L
+        } else {
+            baseSortKey
         }
     }
 }
