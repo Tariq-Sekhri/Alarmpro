@@ -457,6 +457,7 @@ fun TimerScreen(
                                 onToggleSelection = { toggleSelected(entry.preset.id) },
                                 onEnterSelection = { enterSelectionMode(entry.preset.id) },
                                 sortMode = settings.timerSortMode,
+                                indented = entry.group != null,
                                 dragModifier = Modifier.draggableHandle()
                             )
                         }
@@ -609,6 +610,7 @@ private fun TimerPresetCard(
     onToggleSelection: () -> Unit,
     onEnterSelection: () -> Unit,
     sortMode: TimerSortMode,
+    indented: Boolean,
     dragModifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(16.dp)
@@ -617,6 +619,7 @@ private fun TimerPresetCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
+            .padding(start = if (indented) 20.dp else 0.dp)
             .clip(shape)
             .background(if (isRunning) CardSurface else ElevatedSurface.copy(alpha = 0.75f))
             .then(
