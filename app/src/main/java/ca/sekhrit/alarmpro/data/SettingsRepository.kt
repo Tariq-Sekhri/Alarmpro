@@ -25,6 +25,11 @@ class SettingsRepository(context: Context) {
             } catch (e: Exception) {
                 TimerControlStyle.SWITCH
             },
+            timerSortMode = try {
+                TimerSortMode.valueOf(prefs.getString(KEY_TIMER_SORT_MODE, TimerSortMode.MANUAL.name) ?: TimerSortMode.MANUAL.name)
+            } catch (e: Exception) {
+                TimerSortMode.MANUAL
+            },
             silentNotifications = prefs.getBoolean(KEY_SILENT_NOTIFICATIONS, false),
             defaultAlarmSortMode = try {
                 AlarmSortMode.valueOf(prefs.getString(KEY_DEFAULT_ALARM_SORT_MODE, AlarmSortMode.TIME_OF_DAY.name) ?: AlarmSortMode.TIME_OF_DAY.name)
@@ -47,6 +52,7 @@ class SettingsRepository(context: Context) {
             .putInt(KEY_UPCOMING_ALARM_LEAD, settings.upcomingAlarmLeadMinutes)
             .putString(KEY_TIME_PICKER_STYLE, settings.timePickerStyle.name)
             .putString(KEY_TIMER_CONTROL_STYLE, settings.timerControlStyle.name)
+            .putString(KEY_TIMER_SORT_MODE, settings.timerSortMode.name)
             .putBoolean(KEY_SILENT_NOTIFICATIONS, settings.silentNotifications)
             .putString(KEY_DEFAULT_ALARM_SORT_MODE, settings.defaultAlarmSortMode.name)
             .putBoolean(KEY_ACTIVE_ALARMS_FIRST, settings.activeAlarmsFirst)
@@ -65,6 +71,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_UPCOMING_ALARM_LEAD = "upcoming_alarm_lead_minutes"
         private const val KEY_TIME_PICKER_STYLE = "time_picker_style"
         private const val KEY_TIMER_CONTROL_STYLE = "timer_control_style"
+        private const val KEY_TIMER_SORT_MODE = "timer_sort_mode"
         private const val KEY_SILENT_NOTIFICATIONS = "silent_notifications"
         private const val KEY_DEFAULT_ALARM_SORT_MODE = "default_alarm_sort_mode"
         private const val KEY_ACTIVE_ALARMS_FIRST = "active_alarms_first"

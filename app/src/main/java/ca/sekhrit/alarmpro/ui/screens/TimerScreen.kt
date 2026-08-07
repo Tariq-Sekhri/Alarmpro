@@ -32,9 +32,13 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.TimerOff
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -81,6 +85,7 @@ import androidx.activity.compose.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.TimerPreset
 import ca.sekhrit.alarmpro.data.TimerControlStyle
+import ca.sekhrit.alarmpro.data.TimerSortMode
 import ca.sekhrit.alarmpro.ui.components.DurationPickerDialog
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
@@ -90,6 +95,8 @@ import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,6 +113,24 @@ fun TimerScreen(
     var editPreset by remember { mutableStateOf<TimerPreset?>(null) }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(emptySet<String>()) }
+    var showSortMenu by remember { mutableStateOf(false) }
+
+    val sortedPresets = remember(presets, settings.timerSortMode) {
+        when (settings.timerSortMode) {
+            TimerSortMode.TIME_ASC -> presets.sortedBy { it.totalSeconds }
+            TimerSortMode.TIME_DESC -> presets.sortedByDescending { it.totalSeconds }
+            TimerSortMode.MANUAL -> presets
+        }
+    }
+
+    val listState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+        val fromPreset = presets.find { it.id == from.key }
+        val toPreset = presets.find { it.id == to.key }
+        if (fromPreset != null && toPreset != null) {
+            viewModel.movePreset(presets.indexOf(fromPreset), presets.indexOf(toPreset))
+        }
+    }
 
     fun exitSelectionMode() {
         selectionMode = false
@@ -191,6 +216,37 @@ fun TimerScreen(
                             Icon(Icons.Default.Delete, contentDescription = "Delete selected timers")
                         }
                     } else {
+                        Box {
+                            IconButton(onClick = { showSortMenu = true }) {
+                                Icon(Icons.Default.Sort, contentDescription = "Sort timers")
+                            }
+                            DropdownMenu(
+                                expanded = showSortMenu,
+                                onDismissRequest = { showSortMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Manual (Drag to reorder)") },
+                                    onClick = {
+                                        settingsViewModel.updateSettings(settings.copy(timerSortMode = TimerSortMode.MANUAL))
+                                        showSortMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Time (Shortest first)") },
+                                    onClick = {
+                                        settingsViewModel.updateSettings(settings.copy(timerSortMode = TimerSortMode.TIME_ASC))
+                                        showSortMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Time (Longest first)") },
+                                    onClick = {
+                                        settingsViewModel.updateSettings(settings.copy(timerSortMode = TimerSortMode.TIME_DESC))
+                                        showSortMenu = false
+                                    }
+                                )
+                            }
+                        }
                         IconButton(onClick = onOpenSettings) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings")
                         }
@@ -212,6 +268,7 @@ fun TimerScreen(
         floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -243,29 +300,33 @@ fun TimerScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            items(presets, key = { it.id }) { preset ->
-                val timer = activeTimers[preset.id]
-                val isRunningPreset = timer != null && timer.isActive(clockMillis)
-                val remainingSeconds = timer?.liveRemainingSeconds(clockMillis) ?: preset.totalSeconds
-                TimerPresetCard(
-                    preset = preset,
-                    isRunning = isRunningPreset,
-                    displaySeconds = remainingSeconds,
-                    progress = if (isRunningPreset && timer.totalSeconds > 0) {
-                        1f - (remainingSeconds.toFloat() / timer.totalSeconds.toFloat())
-                    } else {
-                        0f
-                    },
-                    onRestart = { viewModel.restartPreset(preset) },
-                    onToggle = { enabled -> viewModel.togglePreset(preset, enabled) },
-                    usePlayPauseButton = settings.timerControlStyle == TimerControlStyle.PLAY_PAUSE_BUTTON,
-                    onEdit = { editPreset = preset },
-                    onDelete = { viewModel.deletePreset(preset) },
-                    selectionMode = selectionMode,
-                    selected = preset.id in selectedIds,
-                    onToggleSelection = { toggleSelected(preset.id) },
-                    onEnterSelection = { enterSelectionMode(preset.id) }
-                )
+            items(sortedPresets, key = { it.id }) { preset ->
+                ReorderableItem(reorderableState, key = preset.id) { isDragging ->
+                    val timer = activeTimers[preset.id]
+                    val isRunningPreset = timer != null && timer.isActive(clockMillis)
+                    val remainingSeconds = timer?.liveRemainingSeconds(clockMillis) ?: preset.totalSeconds
+                    TimerPresetCard(
+                        preset = preset,
+                        isRunning = isRunningPreset,
+                        displaySeconds = remainingSeconds,
+                        progress = if (isRunningPreset && timer.totalSeconds > 0) {
+                            1f - (remainingSeconds.toFloat() / timer.totalSeconds.toFloat())
+                        } else {
+                            0f
+                        },
+                        onRestart = { viewModel.restartPreset(preset) },
+                        onToggle = { enabled -> viewModel.togglePreset(preset, enabled) },
+                        usePlayPauseButton = settings.timerControlStyle == TimerControlStyle.PLAY_PAUSE_BUTTON,
+                        onEdit = { editPreset = preset },
+                        onDelete = { viewModel.deletePreset(preset) },
+                        selectionMode = selectionMode,
+                        selected = preset.id in selectedIds,
+                        onToggleSelection = { toggleSelected(preset.id) },
+                        onEnterSelection = { enterSelectionMode(preset.id) },
+                        sortMode = settings.timerSortMode,
+                        dragModifier = Modifier.draggableHandle()
+                    )
+                }
             }
         }
     }
@@ -286,7 +347,9 @@ private fun TimerPresetCard(
     selectionMode: Boolean,
     selected: Boolean,
     onToggleSelection: () -> Unit,
-    onEnterSelection: () -> Unit
+    onEnterSelection: () -> Unit,
+    sortMode: TimerSortMode,
+    dragModifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(16.dp)
 
@@ -309,6 +372,14 @@ private fun TimerPresetCard(
                 .padding(horizontal = 12.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (sortMode == TimerSortMode.MANUAL && !selectionMode) {
+                Icon(
+                    Icons.Default.DragHandle,
+                    contentDescription = "Reorder",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = dragModifier.padding(end = 8.dp)
+                )
+            }
             if (selectionMode) {
                 Checkbox(checked = selected, onCheckedChange = { onToggleSelection() })
             } else {

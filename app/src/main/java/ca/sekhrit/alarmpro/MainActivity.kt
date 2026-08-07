@@ -135,7 +135,7 @@ fun MainScreen(alarmViewModel: AlarmViewModel, intentFlow: SharedFlow<Intent>) {
                             onEditAlarm = { alarmId -> navController.navigate("alarm/edit/$alarmId") },
                             viewModel = alarmViewModel
                         )
-                        1 -> TimerScreen(onOpenSettings = { navController.navigate("settings") })
+                        1 -> TimerScreen(onOpenSettings = { navController.navigate("settings") }, settingsViewModel = alarmViewModel)
                         2 -> StopwatchScreen(onOpenSettings = { navController.navigate("settings") })
                         3 -> ClockScreen(onOpenSettings = { navController.navigate("settings") }, viewModel = alarmViewModel)
                     }
