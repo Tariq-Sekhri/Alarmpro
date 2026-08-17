@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -27,6 +28,7 @@ import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
 @Composable
 fun AppBottomBar(
     selectedTabIndex: Int,
+    notesEnabled: Boolean,
     onTabSelected: (Int) -> Unit
 ) {
     NavigationBar(containerColor = CardSurface) {
@@ -58,6 +60,15 @@ fun AppBottomBar(
             colors = navColors(),
             onClick = { onTabSelected(3) }
         )
+        if (notesEnabled) {
+            NavigationBarItem(
+                icon = { Icon(Icons.Default.NoteAlt, contentDescription = "Notes") },
+                label = { AutoSizingMenuText("Notes") },
+                selected = selectedTabIndex == 4,
+                colors = navColors(),
+                onClick = { onTabSelected(4) }
+            )
+        }
     }
 }
 

@@ -29,6 +29,7 @@ data class AppSettings(
     val defaultAlarmSoundUri: String? = null,
     val use24HourFormat: Boolean = false,
     val timerSpeechFormat: TimerSpeechFormat = TimerSpeechFormat.TIME_AND_LABEL,
+    val speechRate: SpeechRate = SpeechRate.NORMAL,
     val upcomingAlarmLeadMinutes: Int = 60,
     val timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
     val timerControlStyle: TimerControlStyle = TimerControlStyle.SWITCH,
@@ -36,7 +37,9 @@ data class AppSettings(
     val activeTimersFirst: Boolean = false,
     val silentNotifications: Boolean = false,
     val defaultAlarmSortMode: AlarmSortMode = AlarmSortMode.TIME_OF_DAY,
-    val activeAlarmsFirst: Boolean = false
+    val activeAlarmsFirst: Boolean = false,
+    val notesEnabled: Boolean = false,
+    val notesText: String = ""
 ) {
 }
 

@@ -29,7 +29,6 @@ import java.util.Locale
 class AlarmRingingService : Service() {
     private var mediaPlayer: MediaPlayer? = null
     private var vibrator: Vibrator? = null
-    private var textToSpeech: TextToSpeech? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -159,12 +158,9 @@ class AlarmRingingService : Service() {
     }
 
     private fun speakText(text: String) {
-        textToSpeech = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                textToSpeech?.language = Locale.getDefault()
-                textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "alarmpro_speech")
-            }
-        }
+        val settings = SettingsRepository(this).load()
+        ca.sekhrit.alarmpro.AlarmproApplication.tts?.setSpeechRate(settings.speechRate.value)
+        ca.sekhrit.alarmpro.AlarmproApplication.tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "alarmpro_speech")
     }
 
     private fun stopEffects() {
@@ -173,9 +169,7 @@ class AlarmRingingService : Service() {
         mediaPlayer = null
         vibrator?.cancel()
         vibrator = null
-        textToSpeech?.stop()
-        textToSpeech?.shutdown()
-        textToSpeech = null
+        ca.sekhrit.alarmpro.AlarmproApplication.tts?.stop()
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
     }

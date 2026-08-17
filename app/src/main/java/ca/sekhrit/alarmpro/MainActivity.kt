@@ -42,6 +42,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.channels.BufferOverflow
 import android.content.Intent
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import ca.sekhrit.alarmpro.ui.screens.NotesScreen
 
 class MainActivity : ComponentActivity() {
     private val alarmViewModel: AlarmViewModel by viewModels()
@@ -83,7 +86,8 @@ fun MainScreen(alarmViewModel: AlarmViewModel, intentFlow: SharedFlow<Intent>) {
     RequestAppPermissions()
     val navController = rememberNavController()
     
-    val tabs = listOf("alarm", "timer", "stopwatch", "clock")
+    val settings by alarmViewModel.settings.collectAsState()
+    val tabs = listOf("alarm", "timer", "stopwatch", "clock") + if (settings.notesEnabled) listOf("notes") else emptyList()
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val coroutineScope = rememberCoroutineScope()
     
@@ -112,6 +116,7 @@ fun MainScreen(alarmViewModel: AlarmViewModel, intentFlow: SharedFlow<Intent>) {
             if (showBottomBar) {
                 AppBottomBar(
                     selectedTabIndex = pagerState.currentPage,
+                    notesEnabled = settings.notesEnabled,
                     onTabSelected = { index ->
                         coroutineScope.launch {
                             pagerState.animateScrollToPage(index)
@@ -138,6 +143,7 @@ fun MainScreen(alarmViewModel: AlarmViewModel, intentFlow: SharedFlow<Intent>) {
                         1 -> TimerScreen(onOpenSettings = { navController.navigate("settings") }, settingsViewModel = alarmViewModel)
                         2 -> StopwatchScreen(onOpenSettings = { navController.navigate("settings") })
                         3 -> ClockScreen(onOpenSettings = { navController.navigate("settings") }, viewModel = alarmViewModel)
+                        4 -> NotesScreen(onOpenSettings = { navController.navigate("settings") }, viewModel = alarmViewModel)
                     }
                 }
             }

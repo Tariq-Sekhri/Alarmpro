@@ -8,7 +8,10 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Build
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -317,15 +320,20 @@ object NotificationHelper {
             closeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val title = "$remaining / $total"
+        val title = "$remaining/$total"
         val controls = notificationControls(
             context,
-            title,
+            remaining,
             timerSubtext,
             listOf(
                 NotificationControl(if (isPaused) "Resume" else "Pause", timerActionPendingIntent),
                 NotificationControl("Close", closePendingIntent)
-            )
+            ),
+            chronometerBaseElapsedRealtime = if (isPaused) null else {
+                SystemClock.elapsedRealtime() + (timer.endTimeMillis - System.currentTimeMillis())
+            },
+            chronometerCountsDown = !isPaused,
+            titleSuffix = "/$total"
         )
         val builder = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -444,6 +452,10 @@ object NotificationHelper {
         )
         val silent = SettingsRepository(context).load().silentNotifications
         val stopwatchText = TimeUtils.formatDuration(elapsedMs / 1000)
+        // RemoteViews chronometers use elapsed realtime, while NotificationCompat's
+        // system template expects a wall-clock `when` value.
+        val chronometerBaseElapsedRealtime = SystemClock.elapsedRealtime() - elapsedMs
+        val chronometerBaseWallClock = System.currentTimeMillis() - elapsedMs
         val controls = notificationControls(
             context,
             stopwatchText,
@@ -452,7 +464,8 @@ object NotificationHelper {
                 NotificationControl(if (isRunning) "Pause" else "Resume", pauseResumePendingIntent),
                 NotificationControl("Lap", lapPendingIntent),
                 NotificationControl("Stop", stopPendingIntent)
-            )
+            ),
+            chronometerBaseElapsedRealtime = if (isRunning) chronometerBaseElapsedRealtime else null
         )
         val notification = NotificationCompat.Builder(context, ACTIVE_TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -461,7 +474,8 @@ object NotificationHelper {
             .setCustomContentView(controls)
             .setCustomBigContentView(controls)
             .setShowWhen(false)
-            .setUsesChronometer(false)
+            .setUsesChronometer(isRunning)
+            .setWhen(chronometerBaseWallClock)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setGroup(isolatedNotificationGroup("stopwatch", notificationId))
@@ -508,10 +522,37 @@ object NotificationHelper {
         context: Context,
         title: String,
         subtitle: String?,
-        controls: List<NotificationControl>
+        controls: List<NotificationControl>,
+        chronometerBaseElapsedRealtime: Long? = null,
+        chronometerCountsDown: Boolean = false,
+        titleSuffix: String? = null
     ): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.notification_controls)
-        views.setTextViewText(R.id.notification_title, title)
+        val colors = notificationTextColors(context)
+        views.setTextColor(R.id.notification_title, colors.title)
+        views.setTextColor(R.id.notification_title_suffix, colors.title)
+        views.setTextColor(R.id.notification_subtitle, colors.subtitle)
+        if (chronometerBaseElapsedRealtime == null) {
+            views.setTextViewText(R.id.notification_title, title)
+        } else {
+            views.setChronometer(
+                R.id.notification_title,
+                chronometerBaseElapsedRealtime,
+                null,
+                true
+            )
+            views.setChronometerCountDown(
+                R.id.notification_title,
+                chronometerCountsDown
+            )
+        }
+        views.setViewVisibility(
+            R.id.notification_title_suffix,
+            if (titleSuffix == null) View.GONE else View.VISIBLE
+        )
+        if (titleSuffix != null) {
+            views.setTextViewText(R.id.notification_title_suffix, titleSuffix)
+        }
         views.setViewVisibility(
             R.id.notification_subtitle,
             if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
@@ -532,10 +573,35 @@ object NotificationHelper {
             } else {
                 views.setViewVisibility(viewId, View.VISIBLE)
                 views.setTextViewText(viewId, control.label)
+                views.setTextColor(viewId, colors.action)
                 views.setOnClickPendingIntent(viewId, control.pendingIntent)
             }
         }
         return views
+    }
+
+    private data class NotificationTextColors(
+        val title: Int,
+        val subtitle: Int,
+        val action: Int
+    )
+
+    private fun notificationTextColors(context: Context): NotificationTextColors {
+        val isDark = context.resources.configuration.uiMode and
+            Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        return if (isDark) {
+            NotificationTextColors(
+                title = Color.WHITE,
+                subtitle = Color.rgb(184, 192, 204),
+                action = Color.rgb(69, 211, 243)
+            )
+        } else {
+            NotificationTextColors(
+                title = Color.rgb(32, 33, 36),
+                subtitle = Color.rgb(95, 99, 104),
+                action = Color.rgb(0, 96, 120)
+            )
+        }
     }
 
     private fun isolatedNotificationGroup(kind: String, id: Int): String =

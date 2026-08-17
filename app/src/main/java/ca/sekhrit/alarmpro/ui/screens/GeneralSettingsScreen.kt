@@ -27,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.AlarmSortMode
 import ca.sekhrit.alarmpro.data.TimePickerStyle
 import ca.sekhrit.alarmpro.data.TimerSpeechFormat
+import ca.sekhrit.alarmpro.data.SpeechRate
 import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.ui.components.SettingsCategoryHeader
 import ca.sekhrit.alarmpro.ui.components.SettingsOptionDialog
@@ -42,6 +43,7 @@ fun GeneralSettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsState()
     var showSpeechDialog by remember { mutableStateOf(false) }
+    var showSpeechRateDialog by remember { mutableStateOf(false) }
     var showUpcomingDialog by remember { mutableStateOf(false) }
     var showTimePickerStyleDialog by remember { mutableStateOf(false) }
     var showAlarmSortDialog by remember { mutableStateOf(false) }
@@ -51,6 +53,9 @@ fun GeneralSettingsScreen(
 
     val speechOptions = remember { TimerSpeechFormat.entries.map { it.label } }
     val speechSelectedIndex = TimerSpeechFormat.entries.indexOf(settings.timerSpeechFormat)
+
+    val speechRateOptions = remember { SpeechRate.entries.map { it.label } }
+    val speechRateSelectedIndex = SpeechRate.entries.indexOf(settings.speechRate)
 
     val upcomingLeadOptions = remember { listOf(0, 15, 30, 60) }
     val upcomingOptionLabels = remember { upcomingLeadOptions.map { upcomingAlarmLeadLabel(it) } }
@@ -71,6 +76,21 @@ fun GeneralSettingsScreen(
                     settings.copy(timerSpeechFormat = TimerSpeechFormat.entries[index])
                 )
                 showSpeechDialog = false
+            }
+        )
+    }
+
+    if (showSpeechRateDialog) {
+        SettingsOptionDialog(
+            title = "Speech rate",
+            options = speechRateOptions,
+            selectedIndex = speechRateSelectedIndex,
+            onDismiss = { showSpeechRateDialog = false },
+            onSelect = { index ->
+                viewModel.updateSettings(
+                    settings.copy(speechRate = SpeechRate.entries[index])
+                )
+                showSpeechRateDialog = false
             }
         )
     }
@@ -164,6 +184,11 @@ fun GeneralSettingsScreen(
                 title = "Timer speech format",
                 value = settings.timerSpeechFormat.label,
                 onClick = { showSpeechDialog = true }
+            )
+            SettingsValueRow(
+                title = "Speech rate",
+                value = settings.speechRate.label,
+                onClick = { showSpeechRateDialog = true }
             )
 
             SettingsCategoryHeader("Misc Settings")
