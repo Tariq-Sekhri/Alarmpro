@@ -33,6 +33,7 @@ class AlarmRepository(context: Context) {
                     put("readLabelAloud", alarm.readLabelAloud)
                     put("snoozeEnabled", alarm.snoozeEnabled)
                     put("snoozeMinutes", alarm.snoozeMinutes ?: -1)
+                    put("snoozedUntilEpochMillis", alarm.snoozedUntilEpochMillis ?: -1L)
                     put("skipUntilEpochDay", alarm.skipUntilEpochDay ?: -1)
                     put("soundUri", alarm.soundUri.orEmpty())
                     put("groupId", alarm.groupId.orEmpty())
@@ -61,6 +62,7 @@ class AlarmRepository(context: Context) {
                         readLabelAloud = item.optBoolean("readLabelAloud", false),
                         snoozeEnabled = item.optBoolean("snoozeEnabled", true),
                         snoozeMinutes = item.optInt("snoozeMinutes", -1).let { if (it < 0) null else it },
+                        snoozedUntilEpochMillis = item.optLong("snoozedUntilEpochMillis", -1L).let { if (it < 0L) null else it },
                         skipUntilEpochDay = item.optLong("skipUntilEpochDay", -1).let { if (it < 0) null else it },
                         soundUri = item.optString("soundUri", "").ifBlank { null },
                         groupId = item.optString("groupId", "").ifBlank { null },

@@ -39,6 +39,8 @@ class AlarmScheduler(private val context: Context) {
             triggerAt = triggerAt,
             isSnooze = true
         )
+        val settings = SettingsRepository(context).load()
+        scheduleUpcoming(alarm, triggerAt, settings)
     }
 
     fun cancel(alarm: Alarm) {

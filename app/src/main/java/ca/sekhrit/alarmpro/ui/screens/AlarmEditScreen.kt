@@ -185,7 +185,8 @@ fun AlarmEditScreen(
                     snoozeEnabled = snoozeEnabled,
                     snoozeMinutes = snoozeMinutes,
                     groupId = resolvedGroupId,
-                    soundUri = resolvedSoundUri
+                    soundUri = resolvedSoundUri,
+                    snoozedUntilEpochMillis = null
                 )
             )
         }

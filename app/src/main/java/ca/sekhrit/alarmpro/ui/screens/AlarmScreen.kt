@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AlarmAdd
+import androidx.compose.material.icons.filled.AlarmOff
 import android.content.Intent
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -751,6 +752,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                     )
                                 },
                                 onSkipNext = { viewModel.skipNextAlarm(entry.alarm) },
+                                onCancelSnooze = { viewModel.cancelSnooze(entry.alarm) },
                                 onRemoveFromGroup = entry.group?.let {
                                     { viewModel.removeAlarmFromGroup(entry.alarm.id) }
                                 },
@@ -951,6 +953,7 @@ private fun AlarmCard(
     onCopy: () -> Unit,
     onPreview: () -> Unit,
     onSkipNext: () -> Unit,
+    onCancelSnooze: () -> Unit,
     onRemoveFromGroup: (() -> Unit)?,
     onDelete: () -> Unit
 ) {
@@ -1112,6 +1115,19 @@ private fun AlarmCard(
                         Icon(Icons.Default.PlayArrow, contentDescription = null)
                     }
                 )
+                val isSnoozed = alarm.snoozedUntilEpochMillis != null && alarm.snoozedUntilEpochMillis > System.currentTimeMillis()
+                if (isSnoozed) {
+                    DropdownMenuItem(
+                        text = { Text("Cancel snooze") },
+                        onClick = {
+                            showMenu = false
+                            onCancelSnooze()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.AlarmOff, contentDescription = null)
+                        }
+                    )
+                }
                 if (onRemoveFromGroup != null) {
                     DropdownMenuItem(
                         text = { Text("Remove from group") },

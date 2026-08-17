@@ -266,6 +266,8 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
             skipUntilEpochDay = null,
 
+            snoozedUntilEpochMillis = null,
+
             label = ""
 
         )
@@ -303,6 +305,24 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
         persistAlarms(_alarms.value.map { if (it.id == alarm.id) updated else it })
 
         reschedule(updated)
+
+    }
+
+
+
+    fun cancelSnooze(alarm: Alarm) {
+
+        val updated = alarm.copy(snoozedUntilEpochMillis = null)
+
+        scheduler.cancelSnooze(alarm.id)
+
+        persistAlarms(_alarms.value.map { if (it.id == alarm.id) updated else it })
+
+        if (updated.isEnabled) {
+
+            scheduler.schedule(updated)
+
+        }
 
     }
 
