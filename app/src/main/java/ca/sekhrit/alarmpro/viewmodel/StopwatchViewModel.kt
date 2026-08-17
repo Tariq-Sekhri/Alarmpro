@@ -141,6 +141,12 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun start() {
+        if (!_state.value.isRunning) {
+            startPause()
+        }
+    }
+
     fun stop() {
         if (!_state.value.isRunning) {
             NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)

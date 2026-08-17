@@ -1188,9 +1188,9 @@ private fun SelectionBottomBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SelectionActionButton(
-                    icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = WarmAmber) },
-                    label = "Delete",
-                    onClick = onDelete
+                    icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = ElectricCyan) },
+                    label = "Group",
+                    onClick = onGroup
                 )
                 SelectionActionButton(
                     icon = {
@@ -1216,9 +1216,9 @@ private fun SelectionBottomBar(
                     onClick = onSkipNext
                 )
                 SelectionActionButton(
-                    icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = ElectricCyan) },
-                    label = "Group",
-                    onClick = onGroup
+                    icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = WarmAmber) },
+                    label = "Delete",
+                    onClick = onDelete
                 )
             }
         }

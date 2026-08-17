@@ -7,13 +7,18 @@ import android.provider.AlarmClock
 import android.widget.Toast
 import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.AlarmRepository
+import ca.sekhrit.alarmpro.data.RepeatSchedule
+import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.SettingsRepository
+import ca.sekhrit.alarmpro.data.TimerPreset
+import ca.sekhrit.alarmpro.data.TimerPresetRepository
 import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.data.TimerState
 import ca.sekhrit.alarmpro.receiver.AlarmScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
 import java.time.LocalTime
+import java.util.Calendar
 
 /**
  * Handles Android's public alarm-clock contract.  This is deliberately a
@@ -37,6 +42,9 @@ class AlarmClockCommandActivity : Activity() {
             AlarmClock.ACTION_SET_TIMER -> setTimer(command)
             AlarmClock.ACTION_SHOW_ALARMS -> openMain("alarm")
             AlarmClock.ACTION_SHOW_TIMERS -> openMain("timer")
+            "com.android.deskclock.action.START_STOPWATCH" -> openMain("stopwatch", command = "START_STOPWATCH")
+            "com.android.deskclock.action.STOP_STOPWATCH" -> openMain("stopwatch", command = "STOP_STOPWATCH")
+            "com.android.deskclock.action.RESET_STOPWATCH" -> openMain("stopwatch", command = "RESET_STOPWATCH")
             else -> openMain("alarm")
         }
     }
@@ -49,10 +57,19 @@ class AlarmClockCommandActivity : Activity() {
             return
         }
 
+        val days = command.getIntegerArrayListExtra(AlarmClock.EXTRA_DAYS)
+        val repeatSchedule = if (!days.isNullOrEmpty()) {
+            val mappedDays = days.map { if (it == Calendar.SUNDAY) 7 else it - 1 }.toSet()
+            RepeatSchedule(type = RepeatType.WEEKLY, daysOfWeek = mappedDays)
+        } else {
+            RepeatSchedule()
+        }
+
         val settings = SettingsRepository(this).load()
         val alarm = Alarm(
             time = LocalTime.of(hour, minute),
             label = command.getStringExtra(AlarmClock.EXTRA_MESSAGE).orEmpty().trim(),
+            repeat = repeatSchedule,
             vibrate = settings.defaultVibrate,
             readLabelAloud = settings.defaultReadLabelAloud,
             snoozeEnabled = settings.defaultSnoozeEnabled,
@@ -74,7 +91,19 @@ class AlarmClockCommandActivity : Activity() {
 
         val label = command.getStringExtra(AlarmClock.EXTRA_MESSAGE).orEmpty().trim()
             .ifBlank { formatTimerLabel(seconds) }
+
+        val presetRepo = TimerPresetRepository(this)
+        val existingPresets = presetRepo.loadPresets()
+        val sortOrder = existingPresets.maxOfOrNull { it.sortOrder }?.plus(1) ?: 0
+        val preset = TimerPreset(
+            totalSeconds = seconds,
+            label = label,
+            sortOrder = sortOrder
+        )
+        presetRepo.savePresets(existingPresets + preset)
+
         val timer = TimerState(
+            presetId = preset.id,
             totalSeconds = seconds,
             remainingSeconds = seconds,
             endTimeMillis = System.currentTimeMillis() + seconds * 1_000L,
@@ -88,10 +117,11 @@ class AlarmClockCommandActivity : Activity() {
         openMain("timer", "Timer started")
     }
 
-    private fun openMain(tab: String, confirmation: String? = null) {
+    private fun openMain(tab: String, confirmation: String? = null, command: String? = null) {
         startActivity(Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(MainActivity.EXTRA_TARGET_TAB, tab)
+            command?.let { putExtra(MainActivity.EXTRA_STOPWATCH_COMMAND, it) }
         })
         confirmation?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
         finish()

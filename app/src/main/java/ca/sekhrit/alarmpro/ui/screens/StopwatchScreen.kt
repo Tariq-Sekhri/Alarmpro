@@ -80,6 +80,9 @@ import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.LapEntry
 import ca.sekhrit.alarmpro.viewmodel.StopwatchMark
 import ca.sekhrit.alarmpro.viewmodel.StopwatchViewModel
+import kotlinx.coroutines.flow.SharedFlow
+import android.content.Intent
+import androidx.compose.runtime.LaunchedEffect
 
 private data class StopwatchTab(
     val id: String,
@@ -90,7 +93,8 @@ private data class StopwatchTab(
 @Composable
 fun StopwatchScreen(
     onOpenSettings: () -> Unit = {},
-    viewModel: StopwatchViewModel? = null
+    viewModel: StopwatchViewModel? = null,
+    intentFlow: SharedFlow<Intent>? = null
 ) {
     var stopwatchTabs by remember {
         mutableStateOf(listOf(StopwatchTab(id = "default", label = "Stopwatch 1")))
@@ -100,6 +104,17 @@ fun StopwatchScreen(
     SideEffect {
         selectedViewModel.bindToSession(selectedStopwatchId)
     }
+
+    LaunchedEffect(intentFlow) {
+        intentFlow?.collect { intent ->
+            when (intent.getStringExtra("extra_stopwatch_command")) {
+                "START_STOPWATCH" -> selectedViewModel.start()
+                "STOP_STOPWATCH" -> selectedViewModel.stop()
+                "RESET_STOPWATCH" -> selectedViewModel.reset()
+            }
+        }
+    }
+
     val state by selectedViewModel.state.collectAsState()
     val markPresets by selectedViewModel.suggestedAlertSeconds.collectAsState()
     val bestLapMs = state.laps.minOfOrNull { it.lapTimeMs }
