@@ -21,7 +21,7 @@ object AlarmActions {
         if (alarm != null) {
             repository.saveAlarms(
                 alarms.map {
-                    if (it.id == alarmId) it.copy(isEnabled = false, skipUntilEpochDay = null) else it
+                    if (it.id == alarmId) it.copy(isEnabled = false, skipUntilEpochDay = null, snoozedUntilEpochMillis = null) else it
                 }
             )
         }
@@ -40,7 +40,7 @@ object AlarmActions {
         }
 
         val skipDay = RepeatCalculator.nextUnskippedTriggerDate(alarm).toEpochDay()
-        val updated = alarm.copy(skipUntilEpochDay = skipDay)
+        val updated = alarm.copy(skipUntilEpochDay = skipDay, snoozedUntilEpochMillis = null)
         repository.saveAlarms(alarms.map { if (it.id == alarmId) updated else it })
         scheduler.schedule(updated)
         NotificationHelper.cancelAlarmNotification(context, alarmId)
@@ -65,12 +65,13 @@ object AlarmActions {
         if (alarm.repeat.type == RepeatType.ONCE) {
             scheduler.cancel(alarmId)
             repository.saveAlarms(
-                alarms.map { if (it.id == alarmId) it.copy(isEnabled = false, skipUntilEpochDay = null) else it }
+                alarms.map { if (it.id == alarmId) it.copy(isEnabled = false, skipUntilEpochDay = null, snoozedUntilEpochMillis = null) else it }
             )
         } else {
             val today = java.time.LocalDate.now().toEpochDay()
             val cleared = alarm.copy(
-                skipUntilEpochDay = alarm.skipUntilEpochDay?.takeIf { it > today }
+                skipUntilEpochDay = alarm.skipUntilEpochDay?.takeIf { it > today },
+                snoozedUntilEpochMillis = null
             )
             if (cleared != alarm) {
                 repository.saveAlarms(
@@ -93,8 +94,12 @@ object AlarmActions {
             NotificationHelper.cancelAlarmNotification(context, alarmId)
             return
         }
+        val snoozeMinutes = alarm.resolveSnoozeMinutes(settings)
         AlarmScheduler(context).cancelRegular(alarmId)
-        AlarmScheduler(context).scheduleSnooze(alarm, alarm.resolveSnoozeMinutes(settings))
+        val targetMillis = System.currentTimeMillis() + snoozeMinutes * 60_000L
+        val updated = alarm.copy(snoozedUntilEpochMillis = targetMillis)
+        repository.saveAlarms(repository.loadAlarms().map { if (it.id == alarmId) updated else it })
+        AlarmScheduler(context).scheduleSnooze(alarm, snoozeMinutes)
         NotificationHelper.cancelAlarmNotification(context, alarmId)
         NotificationHelper.cancelUpcomingNotification(context, alarmId)
     }

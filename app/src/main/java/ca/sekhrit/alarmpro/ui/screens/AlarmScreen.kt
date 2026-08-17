@@ -176,7 +176,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                     groupLabel.contains(searchQuery, ignoreCase = true) ||
                     TimeUtils.formatTime(alarm.time, settings.use24HourFormat)
                         .contains(searchQuery, ignoreCase = true) ||
-                    RepeatCalculator.alarmCardRepeatLine(alarm, now)
+                    RepeatCalculator.alarmCardRepeatLine(alarm, now, settings.use24HourFormat)
                         .contains(searchQuery, ignoreCase = true)
             }
         }
@@ -703,7 +703,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                 alarm = entry.alarm,
                                 displayLabel = displayLabel,
                                 use24Hour = settings.use24HourFormat,
-                                repeatLine = RepeatCalculator.alarmCardRepeatLine(entry.alarm, now),
+                                repeatLine = RepeatCalculator.alarmCardRepeatLine(entry.alarm, now, settings.use24HourFormat),
                                 skipScheduled = RepeatCalculator.hasSkipScheduled(entry.alarm, now),
                                 indented = entry.group != null,
                                 selectionMode = selectionMode,

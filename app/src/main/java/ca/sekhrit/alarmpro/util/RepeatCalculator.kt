@@ -19,6 +19,9 @@ object RepeatCalculator {
     private val dayNamesUpper = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
 
     fun nextTriggerMillis(alarm: Alarm, from: LocalDateTime = LocalDateTime.now()): Long {
+        if (alarm.snoozedUntilEpochMillis != null && alarm.snoozedUntilEpochMillis > System.currentTimeMillis()) {
+            return alarm.snoozedUntilEpochMillis
+        }
         val zone = ZoneId.systemDefault()
         val triggerDate = nextTriggerDate(alarm, from.toLocalDate(), from.toLocalTime())
         return LocalDateTime.of(triggerDate, alarm.time).atZone(zone).toInstant().toEpochMilli()
@@ -200,7 +203,14 @@ object RepeatCalculator {
         }
     }
 
-    fun alarmCardRepeatLine(alarm: Alarm, from: LocalDateTime = LocalDateTime.now()): String {
+    fun alarmCardRepeatLine(alarm: Alarm, from: LocalDateTime = LocalDateTime.now(), use24HourFormat: Boolean = false): String {
+        if (alarm.snoozedUntilEpochMillis != null && alarm.snoozedUntilEpochMillis > System.currentTimeMillis()) {
+            val snoozeTime = java.time.Instant.ofEpochMilli(alarm.snoozedUntilEpochMillis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime()
+            val formatted = TimeUtils.formatTime(snoozeTime, use24HourFormat)
+            return "Snoozed until $formatted"
+        }
         val schedule = alarm.repeat
         return when (schedule.type) {
             RepeatType.ONCE -> {
