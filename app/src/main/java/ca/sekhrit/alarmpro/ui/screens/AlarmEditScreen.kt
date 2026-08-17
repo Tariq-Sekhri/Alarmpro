@@ -88,7 +88,7 @@ fun AlarmEditScreen(
     var selectedHour by remember(existing?.id) { mutableIntStateOf(initialTime.hour) }
     var selectedMinute by remember(existing?.id) { mutableIntStateOf(initialTime.minute) }
     var label by remember(existing?.id) { mutableStateOf(existing?.label.orEmpty()) }
-    var isActive by remember(existing?.id) { mutableStateOf(existing?.isEnabled ?: true) }
+    var isActive by remember(existing?.id) { mutableStateOf(true) }
     var repeatType by remember(existing?.id) { mutableStateOf(existing?.repeat?.type ?: RepeatType.ONCE) }
     var selectedDays by remember(existing?.id) { mutableStateOf(existing?.repeat?.daysOfWeek ?: emptySet()) }
     var weekInterval by remember(existing?.id) { mutableIntStateOf(existing?.repeat?.weekInterval ?: 2) }
