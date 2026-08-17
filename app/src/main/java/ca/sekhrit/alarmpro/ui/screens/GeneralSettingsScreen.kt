@@ -24,6 +24,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import kotlinx.coroutines.launch
+import ca.sekhrit.alarmpro.util.BackupRestore
+import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
 import ca.sekhrit.alarmpro.data.AlarmSortMode
 import ca.sekhrit.alarmpro.data.TimePickerStyle
 import ca.sekhrit.alarmpro.data.TimerSpeechFormat
@@ -41,6 +49,8 @@ fun GeneralSettingsScreen(
     onBack: () -> Unit,
     viewModel: AlarmViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val settings by viewModel.settings.collectAsState()
     var showSpeechDialog by remember { mutableStateOf(false) }
     var showSpeechRateDialog by remember { mutableStateOf(false) }
@@ -64,6 +74,38 @@ fun GeneralSettingsScreen(
 
     val alarmSortOptions = remember { AlarmSortMode.entries.map { it.label } }
     val alarmSortSelectedIndex = AlarmSortMode.entries.indexOf(settings.defaultAlarmSortMode)
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val success = BackupRestore.exportData(context, uri)
+                if (success) {
+                    Toast.makeText(context, "Export successful", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Export failed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val success = BackupRestore.importData(context, uri)
+                if (success) {
+                    viewModel.refreshFromStorage()
+                    TimerViewModel.instance.get()?.get()?.syncFromStorage()
+                    Toast.makeText(context, "Import successful", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Import failed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     if (showSpeechDialog) {
         SettingsOptionDialog(
@@ -209,6 +251,18 @@ fun GeneralSettingsScreen(
                 title = "Upcoming alarm notification",
                 value = upcomingAlarmLeadLabel(settings.upcomingAlarmLeadMinutes),
                 onClick = { showUpcomingDialog = true }
+            )
+
+            SettingsCategoryHeader("Backup & Restore")
+            SettingsValueRow(
+                title = "Export Data",
+                value = "",
+                onClick = { exportLauncher.launch("alarmpro_backup.json") }
+            )
+            SettingsValueRow(
+                title = "Import Data",
+                value = "",
+                onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
             )
         }
     }
