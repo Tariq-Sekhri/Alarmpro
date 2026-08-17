@@ -98,7 +98,7 @@ fun GeneralSettingsScreen(
                 val success = BackupRestore.importData(context, uri)
                 if (success) {
                     viewModel.refreshFromStorage()
-                    TimerViewModel.instance.get()?.get()?.syncFromStorage()
+                    TimerViewModel.instance()?.syncFromStorage()
                     Toast.makeText(context, "Import successful", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(context, "Import failed", Toast.LENGTH_SHORT).show()

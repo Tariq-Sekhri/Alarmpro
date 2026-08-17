@@ -51,9 +51,11 @@ object BackupRestore {
             oldAlarms.forEach { alarmScheduler.cancel(it) }
 
             val timerRepo = TimerRepository(context)
-            val oldTimers = timerRepo.loadActiveTimers()
             val timerScheduler = TimerScheduler(context)
-            oldTimers.values.forEach { timerScheduler.cancel(it) }
+            val timers = timerRepo.loadAll()
+            timers.forEach { timer ->
+                timerScheduler.cancel(timer.id)
+            }
 
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val editor = prefs.edit()
@@ -73,8 +75,12 @@ object BackupRestore {
             val newAlarms = alarmRepo.loadAlarms()
             newAlarms.filter { it.isEnabled }.forEach { alarmScheduler.schedule(it) }
 
-            val newTimers = timerRepo.loadActiveTimers()
-            newTimers.values.filter { it.isRunning }.forEach { timerScheduler.schedule(it) }
+            val importedTimers = timerRepo.loadAll()
+            importedTimers.forEach { timer ->
+                if (timer.isRunning && timer.endTimeMillis > 0) {
+                    timerScheduler.schedule(timer.id, timer.endTimeMillis, timer.label, timer.totalSeconds)
+                }
+            }
             
             true
         } catch (e: Exception) {

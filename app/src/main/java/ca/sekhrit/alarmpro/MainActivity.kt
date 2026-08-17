@@ -71,31 +71,6 @@ class MainActivity : ComponentActivity() {
         intentFlow.tryEmit(intent)
     }
 
-class MainActivity : ComponentActivity() {
-    private val alarmViewModel: AlarmViewModel by viewModels()
-    private val intentFlow = MutableSharedFlow<Intent>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
-        )
-        
-        intent?.let { intentFlow.tryEmit(it) }
-
-        setContent {
-            AlarmProTheme {
-                MainScreen(alarmViewModel, intentFlow)
-            }
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        intentFlow.tryEmit(intent)
-    }
-
     override fun onResume() {
         super.onResume()
         alarmViewModel.refreshFromStorage()
@@ -170,6 +145,10 @@ fun MainScreen(alarmViewModel: AlarmViewModel, intentFlow: SharedFlow<Intent>) {
                         2 -> StopwatchScreen(onOpenSettings = { navController.navigate("settings") }, intentFlow = intentFlow)
                         3 -> ClockScreen(onOpenSettings = { navController.navigate("settings") }, viewModel = alarmViewModel)
                         4 -> NotesScreen(onOpenSettings = { navController.navigate("settings") }, viewModel = alarmViewModel)
+                    }
+                }
+            }
+            composable("alarm/edit") {
                 AlarmEditScreen(
                     alarmId = null,
                     onBack = { navController.popBackStack() },
