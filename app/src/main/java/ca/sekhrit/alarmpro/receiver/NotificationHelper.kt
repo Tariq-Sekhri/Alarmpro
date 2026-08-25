@@ -139,6 +139,30 @@ object NotificationHelper {
         return builder.build()
     }
 
+    /**
+     * Posts the full-screen alarm notification while the exact-alarm broadcast
+     * is still active. Waiting for the foreground service to start first gives
+     * some physical devices an opportunity to suppress the interruption.
+     */
+    fun showRingingAlarmNotification(
+        context: Context,
+        alarmId: String,
+        hour: Int,
+        minute: Int,
+        label: String,
+        snoozeAllowed: Boolean,
+        snoozeMinutes: Int
+    ) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notifySafely(
+            context,
+            notificationManager,
+            alarmNotificationId(alarmId),
+            buildAlarmNotification(context, alarmId, hour, minute, label, snoozeAllowed, snoozeMinutes)
+        )
+    }
+
     fun showUpcomingAlarmNotification(
         context: Context,
         alarmId: String,
@@ -273,6 +297,22 @@ object NotificationHelper {
             .setSilent(silent)
             .addAction(0, "Dismiss", dismissPendingIntent)
             .build()
+    }
+
+    fun showRingingTimerNotification(
+        context: Context,
+        timerId: String,
+        label: String,
+        totalSeconds: Int
+    ) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notifySafely(
+            context,
+            notificationManager,
+            TimerScheduler.notificationIdFor(timerId),
+            buildTimerNotification(context, timerId, label, totalSeconds)
+        )
     }
 
     fun showActiveTimerNotification(context: Context, timer: TimerState) {

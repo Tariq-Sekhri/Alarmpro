@@ -47,6 +47,8 @@ import ca.sekhrit.alarmpro.data.AlarmRepository
 import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.domain.AlarmActions
+import ca.sekhrit.alarmpro.receiver.AlarmReceiver
+import ca.sekhrit.alarmpro.receiver.AlarmScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
 import ca.sekhrit.alarmpro.service.AlarmRingingService
@@ -71,6 +73,11 @@ class AlarmRingActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val ringingIntent = resolveRingingIntent(intent) ?: run {
+            finish()
+            return
+        }
+        setIntent(ringingIntent)
 
         // Ringing is an interruption, not a screen the user can accidentally
         // back out of while the alarm continues underneath. Home can still
@@ -182,8 +189,23 @@ class AlarmRingActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
+        val ringingIntent = resolveRingingIntent(intent) ?: run {
+            finish()
+            return
+        }
+        setIntent(ringingIntent)
         recreate()
+    }
+
+    private fun resolveRingingIntent(candidate: Intent): Intent? {
+        if (!candidate.getBooleanExtra(EXTRA_SCHEDULED_ALARM_TRIGGER, false)) return candidate
+
+        val alarmId = candidate.getStringExtra(EXTRA_ALARM_ID) ?: return null
+        return AlarmReceiver.prepareScheduledAlarm(
+            context = this,
+            alarmId = alarmId,
+            isSnooze = candidate.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
+        )
     }
 
     override fun onStop() {
@@ -230,6 +252,7 @@ class AlarmRingActivity : ComponentActivity() {
         const val EXTRA_SOUND_URI = "SOUND_URI"
         const val EXTRA_TIMER_ID = "TIMER_ID"
         const val EXTRA_TIMER_TOTAL_SECONDS = "TIMER_TOTAL_SECONDS"
+        const val EXTRA_SCHEDULED_ALARM_TRIGGER = "SCHEDULED_ALARM_TRIGGER"
         const val TYPE_ALARM = "alarm"
         const val TYPE_TIMER = "timer"
         const val TYPE_PREVIEW = "preview"

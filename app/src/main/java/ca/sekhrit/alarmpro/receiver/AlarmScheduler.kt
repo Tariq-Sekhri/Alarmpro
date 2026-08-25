@@ -4,6 +4,8 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import ca.sekhrit.alarmpro.AlarmRingActivity
+import ca.sekhrit.alarmpro.MainActivity
 import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.SettingsRepository
@@ -122,25 +124,27 @@ class AlarmScheduler(private val context: Context) {
         triggerAt: Long,
         isSnooze: Boolean = false
     ) {
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
+        // Let AlarmManager launch the ringing activity itself. This is the
+        // system-owned exact-alarm delivery, not a second-hop activity start
+        // from a background BroadcastReceiver that OEM devices can block.
+        cancelLegacyAlarmBroadcast(requestCode)
+        val intent = Intent(context, AlarmRingActivity::class.java).apply {
             action = ACTION_ALARM
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(AlarmRingActivity.EXTRA_SCHEDULED_ALARM_TRIGGER, true)
             putExtra(EXTRA_ALARM_ID, alarm.id)
-            putExtra(EXTRA_HOUR, alarm.time.hour)
-            putExtra(EXTRA_MINUTE, alarm.time.minute)
-            putExtra(EXTRA_LABEL, alarm.label)
-            putExtra(EXTRA_VIBRATE, alarm.vibrate)
-            putExtra(EXTRA_READ_LABEL_ALOUD, alarm.readLabelAloud)
             putExtra(EXTRA_IS_SNOOZE, isSnooze)
         }
 
-        val pendingIntent = PendingIntent.getBroadcast(
+        val pendingIntent = PendingIntent.getActivity(
             context,
             requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        setExact(triggerAt, pendingIntent)
+        setAlarmClock(triggerAt, requestCode, pendingIntent)
     }
 
     private fun setExact(triggerAt: Long, pendingIntent: PendingIntent) {
@@ -161,7 +165,50 @@ class AlarmScheduler(private val context: Context) {
         }
     }
 
+    private fun setAlarmClock(
+        triggerAt: Long,
+        requestCode: Int,
+        operation: PendingIntent
+    ) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
+            !alarmManager.canScheduleExactAlarms()
+        ) {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
+            return
+        }
+
+        val showIntent = PendingIntent.getActivity(
+            context,
+            requestCode,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(MainActivity.EXTRA_TARGET_TAB, "alarm")
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.setAlarmClock(
+            AlarmManager.AlarmClockInfo(triggerAt, showIntent),
+            operation
+        )
+    }
+
     private fun cancelRequestCode(requestCode: Int, action: String) {
+        if (action == ACTION_ALARM) {
+            val activityIntent = Intent(context, AlarmRingActivity::class.java).apply {
+                this.action = action
+            }
+            val activityPendingIntent = PendingIntent.getActivity(
+                context,
+                requestCode,
+                activityIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(activityPendingIntent)
+            cancelLegacyAlarmBroadcast(requestCode)
+            return
+        }
+
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             this.action = action
         }
@@ -172,6 +219,19 @@ class AlarmScheduler(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(pendingIntent)
+    }
+
+    private fun cancelLegacyAlarmBroadcast(requestCode: Int) {
+        val legacyIntent = Intent(context, AlarmReceiver::class.java).apply {
+            action = ACTION_ALARM
+        }
+        val legacyPendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            legacyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(legacyPendingIntent)
     }
 
     companion object {
