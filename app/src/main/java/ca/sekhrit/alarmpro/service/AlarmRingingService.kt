@@ -107,7 +107,12 @@ class AlarmRingingService : Service() {
         startAlarmSound(AlarmSoundUtils.systemDefaultUri())
         startVibration()
         val settings = SettingsRepository(this).load()
-        timerSpeechText(settings.timerSpeechFormat, label, totalSeconds)?.let(::speakText)
+        timerSpeechText(
+            format = settings.timerSpeechFormat,
+            label = label,
+            totalSeconds = totalSeconds,
+            customTemplate = settings.timerSpeechTemplate
+        )?.let(::speakText)
     }
 
     private fun acquireWakeLock() {

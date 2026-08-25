@@ -1,9 +1,11 @@
 package ca.sekhrit.alarmpro.data
 
 enum class TimerSpeechFormat(val label: String) {
+    OFF("Off"),
     TIME("Time"),
     LABEL("Label"),
-    TIME_AND_LABEL("Time and label");
+    TIME_AND_LABEL("Time and label"),
+    CUSTOM("Custom template");
 
     companion object {
         fun fromStored(value: String?): TimerSpeechFormat {
@@ -15,10 +17,12 @@ enum class TimerSpeechFormat(val label: String) {
 fun timerSpeechText(
     format: TimerSpeechFormat,
     label: String,
-    totalSeconds: Int
+    totalSeconds: Int,
+    customTemplate: String = DEFAULT_TIMER_SPEECH_TEMPLATE
 ): String? {
     val timeText = formatDurationForSpeech(totalSeconds)
     return when (format) {
+        TimerSpeechFormat.OFF -> null
         TimerSpeechFormat.TIME -> timeText
         TimerSpeechFormat.LABEL -> label.takeIf { it.isNotBlank() }
         TimerSpeechFormat.TIME_AND_LABEL -> {
@@ -27,8 +31,42 @@ fun timerSpeechText(
                 else -> timeText
             }
         }
+        TimerSpeechFormat.CUSTOM -> formatTimerSpeechTemplate(
+            template = customTemplate,
+            label = label,
+            totalSeconds = totalSeconds
+        )
     }
 }
+
+/**
+ * Expands a timer speech template. `$t` is the natural duration, `$l` the label,
+ * and `$h`, `$m`, `$s` the individual hours, minutes, and seconds. Text inside
+ * brackets that contains `$l` is only spoken when a label is available.
+ */
+fun formatTimerSpeechTemplate(
+    template: String,
+    label: String,
+    totalSeconds: Int
+): String? {
+    val safeSeconds = totalSeconds.coerceAtLeast(0)
+    val values = mapOf(
+        "\$t" to formatDurationForSpeech(safeSeconds),
+        "\$l" to label.trim(),
+        "\$h" to (safeSeconds / 3600).toString(),
+        "\$m" to ((safeSeconds % 3600) / 60).toString(),
+        "\$s" to (safeSeconds % 60).toString()
+    )
+    val withoutOptionalLabel = Regex("\\[([^\\[\\]]*\\\$l[^\\[\\]]*)]").replace(template) { match ->
+        if (label.isBlank()) "" else match.groupValues[1]
+    }
+    val expanded = values.entries.fold(withoutOptionalLabel) { text, (token, value) ->
+        text.replace(token, value)
+    }.replace(Regex("\\s+"), " ").trim()
+    return expanded.takeIf { it.isNotBlank() }
+}
+
+const val DEFAULT_TIMER_SPEECH_TEMPLATE = "Timer finished: \$t[. \$l]"
 
 fun formatDurationForSpeech(totalSeconds: Int): String {
     val hours = totalSeconds / 3600

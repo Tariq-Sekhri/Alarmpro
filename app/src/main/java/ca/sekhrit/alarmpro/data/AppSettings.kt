@@ -29,6 +29,7 @@ data class AppSettings(
     val defaultAlarmSoundUri: String? = null,
     val use24HourFormat: Boolean = false,
     val timerSpeechFormat: TimerSpeechFormat = TimerSpeechFormat.TIME_AND_LABEL,
+    val timerSpeechTemplate: String = DEFAULT_TIMER_SPEECH_TEMPLATE,
     val speechRate: SpeechRate = SpeechRate.NORMAL,
     val upcomingAlarmLeadMinutes: Int = 60,
     val timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
