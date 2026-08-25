@@ -3,7 +3,6 @@ package ca.sekhrit.alarmpro.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import ca.sekhrit.alarmpro.AlarmRingActivity
 import ca.sekhrit.alarmpro.data.AlarmGroupRepository
 import ca.sekhrit.alarmpro.data.AlarmRepository
@@ -58,16 +57,11 @@ class AlarmReceiver : BroadcastReceiver() {
 
     private fun handleAlarm(context: Context, intent: Intent) {
         val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
-        val ringIntent = prepareScheduledAlarm(
+        prepareScheduledAlarm(
             context,
             alarmId,
             intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
         ) ?: return
-
-        // Legacy installations can still have a BroadcastReceiver alarm
-        // PendingIntent scheduled. Bring up the prepared interaction surface
-        // while preserving the direct-activity path for newly scheduled alarms.
-        launchRingingActivity(context, alarmId.hashCode(), ringIntent)
     }
 
     private fun handleUpcomingAlarm(context: Context, intent: Intent) {
@@ -198,69 +192,8 @@ class AlarmReceiver : BroadcastReceiver() {
                 repository.removeTimer(timerId)
                 TimerViewModel.instance()?.syncFromStorage()
                 NotificationHelper.showRingingTimerNotification(context, timerId, label, totalSeconds)
-                launchRingingActivity(
-                    context = context,
-                    ringType = AlarmRingActivity.TYPE_TIMER,
-                    timerId = timerId,
-                    label = label,
-                    totalSeconds = totalSeconds
-                )
                 AlarmRingingService.startTimer(context, timerId, label, totalSeconds)
             }
-        }
-
-        /**
-         * Exact alarms are permitted to surface an alarm activity, but device
-         * notification policies can decline a full-screen intent. Start the
-         * same screen directly for alarms and timers; the foreground
-         * notification remains the fallback when the system blocks it.
-         */
-        private fun launchRingingActivity(
-            context: Context,
-            ringType: String,
-            alarmId: String = "",
-            timerId: String = "",
-            hour: Int = 0,
-            minute: Int = 0,
-            label: String = "",
-            snoozeAllowed: Boolean = true,
-            snoozeMinutes: Int = 10,
-            totalSeconds: Int = 0
-        ) {
-            runCatching {
-                val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    putExtra(AlarmRingActivity.EXTRA_RING_TYPE, ringType)
-                    putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
-                    putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
-                    putExtra(AlarmRingActivity.EXTRA_HOUR, hour)
-                    putExtra(AlarmRingActivity.EXTRA_MINUTE, minute)
-                    putExtra(AlarmRingActivity.EXTRA_LABEL, label)
-                    putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
-                    putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
-                    putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
-                }
-                val requestCode = if (alarmId.isNotBlank()) {
-                    alarmId.hashCode()
-                } else {
-                    TimerScheduler.notificationIdFor(timerId)
-                }
-                launchRingingActivity(context, requestCode, ringIntent)
-            }.onFailure { error ->
-                // Keep this visible in logcat: the foreground-service
-                // notification remains the fallback, but a swallowed failure
-                // made locked-device delivery impossible to diagnose.
-                Log.e("AlarmReceiver", "Could not launch ringing activity", error)
-            }
-        }
-
-        private fun launchRingingActivity(
-            context: Context,
-            requestCode: Int,
-            intent: Intent
-        ) {
-            NotificationHelper.launchRingingActivity(context, requestCode, intent)
         }
 
         const val ACTION_DISMISS_ALARM = "ca.sekhrit.alarmpro.DISMISS_ALARM"

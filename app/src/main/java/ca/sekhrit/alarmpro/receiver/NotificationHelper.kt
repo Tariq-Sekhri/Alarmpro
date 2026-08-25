@@ -113,7 +113,6 @@ object NotificationHelper {
             settings.use24HourFormat
         ).replace(" ", "").lowercase()
         val title = "${if (label.isBlank()) "Alarm" else label} - $timeText"
-        val silent = settings.silentNotifications
         val builder = NotificationCompat.Builder(context, ALARM_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
@@ -129,7 +128,6 @@ object NotificationHelper {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setFullScreenIntent(ringPendingIntent, true)
             .setContentIntent(ringPendingIntent)
-            .setSilent(silent)
             .addAction(0, "Dismiss", dismissPendingIntent)
 
         if (snoozeAllowed) {
@@ -279,7 +277,6 @@ object NotificationHelper {
         )
 
         val title = if (label.isBlank()) "Timer finished" else label
-        val silent = SettingsRepository(context).load().silentNotifications
         return NotificationCompat.Builder(context, TIMER_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
@@ -294,7 +291,6 @@ object NotificationHelper {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setFullScreenIntent(openPendingIntent, true)
             .setContentIntent(openPendingIntent)
-            .setSilent(silent)
             .addAction(0, "Dismiss", dismissPendingIntent)
             .build()
     }
@@ -569,34 +565,6 @@ object NotificationHelper {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(TimerScheduler.notificationIdFor(timerId))
-    }
-
-    /**
-     * Android 15+ no longer grants a PendingIntent creator's background
-     * activity-launch privilege by default. A user-scheduled ringing alarm is
-     * the intentional background-launch case, so opt this one trusted activity
-     * intent in explicitly. Without this, SystemUI can post the notification
-     * while refusing to bring AlarmRingActivity to the foreground.
-     */
-    internal fun launchRingingActivity(
-        context: Context,
-        requestCode: Int,
-        intent: Intent
-    ) {
-        val pendingIntent = ringingActivityPendingIntent(context, requestCode, intent)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            pendingIntent.send(
-                context,
-                0,
-                null,
-                null,
-                null,
-                null,
-                backgroundActivityOptions(forCreator = false)
-            )
-        } else {
-            pendingIntent.send()
-        }
     }
 
     private fun ringingActivityPendingIntent(
