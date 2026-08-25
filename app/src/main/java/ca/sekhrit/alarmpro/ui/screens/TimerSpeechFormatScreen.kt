@@ -11,8 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,8 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.DEFAULT_TIMER_SPEECH_TEMPLATE
-import ca.sekhrit.alarmpro.data.DEFAULT_ELAPSED_SPEECH_TEMPLATE
-import ca.sekhrit.alarmpro.data.ElapsedSpeechTiming
 import ca.sekhrit.alarmpro.data.TimerSpeechFormat
 import ca.sekhrit.alarmpro.data.formatTimerSpeechTemplate
 import ca.sekhrit.alarmpro.ui.theme.WarmAmber
@@ -52,37 +48,13 @@ fun TimerSpeechFormatScreen(
     val settings by viewModel.settings.collectAsState()
     var format by remember(settings.timerSpeechFormat) { mutableStateOf(settings.timerSpeechFormat) }
     var template by remember(settings.timerSpeechTemplate) { mutableStateOf(settings.timerSpeechTemplate) }
-    var elapsedTiming by remember(settings.timerElapsedSpeechTiming) {
-        mutableStateOf(settings.timerElapsedSpeechTiming)
-    }
-    var elapsedTemplate by remember(settings.timerElapsedSpeechTemplate) {
-        mutableStateOf(settings.timerElapsedSpeechTemplate)
-    }
-    var showElapsedHelp by remember { mutableStateOf(false) }
     val preview = formatTimerSpeechTemplate(template, label = "Pasta", totalSeconds = 300)
-
-    if (showElapsedHelp) {
-        AlertDialog(
-            onDismissRequest = { showElapsedHelp = false },
-            title = { Text("Elapsed time") },
-            text = {
-                Text(
-                    "After each snooze: speak elapsed time when the alarm rings again after snoozing.\n\n" +
-                        "Never: do not speak elapsed time.\n\n" +
-                        "Use \$e for elapsed time. Example: This alarm has been active for \$e."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showElapsedHelp = false }) { Text("Got it") }
-            }
-        )
-    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle("Alarm & Timer Speech") },
+                title = { ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle("Timer Speech Format") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -111,10 +83,6 @@ fun TimerSpeechFormatScreen(
                                 timerSpeechFormat = format,
                                 timerSpeechTemplate = template.trim().ifBlank {
                                     DEFAULT_TIMER_SPEECH_TEMPLATE
-                                },
-                                timerElapsedSpeechTiming = elapsedTiming,
-                                timerElapsedSpeechTemplate = elapsedTemplate.trim().ifBlank {
-                                    DEFAULT_ELAPSED_SPEECH_TEMPLATE
                                 }
                             )
                         )
@@ -133,7 +101,7 @@ fun TimerSpeechFormatScreen(
                 .padding(horizontal = 16.dp)
         ) {
             Text(
-                text = "Choose what Alarmpro says when an alarm or timer finishes.",
+                text = "Choose what Alarmpro says when a timer finishes.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp)
@@ -142,8 +110,6 @@ fun TimerSpeechFormatScreen(
                 onClick = {
                     format = TimerSpeechFormat.TIME_AND_LABEL
                     template = DEFAULT_TIMER_SPEECH_TEMPLATE
-                    elapsedTiming = ElapsedSpeechTiming.AFTER_EACH_SNOOZE
-                    elapsedTemplate = DEFAULT_ELAPSED_SPEECH_TEMPLATE
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -177,7 +143,7 @@ fun TimerSpeechFormatScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TokenDescription(token = "\$t", description = "timer duration (example: 10 minutes)")
-                TokenDescription(token = "\$l", description = "alarm or timer label")
+                TokenDescription(token = "\$l", description = "timer label")
                 TokenDescription(token = "\$h", description = "total hours")
                 TokenDescription(token = "\$m", description = "remaining minutes")
                 TokenDescription(token = "\$s", description = "remaining seconds")
@@ -197,36 +163,6 @@ fun TimerSpeechFormatScreen(
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
 
-                Row(
-                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "2) Elapsed Time",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = WarmAmber,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { showElapsedHelp = true }) {
-                        Icon(Icons.Default.HelpOutline, contentDescription = "Elapsed time help")
-                    }
-                }
-                ElapsedSpeechTiming.entries.forEach { timing ->
-                    ElapsedTimingChoice(
-                        timing = timing,
-                        selected = elapsedTiming == timing,
-                        onClick = { elapsedTiming = timing }
-                    )
-                }
-                OutlinedTextField(
-                    value = elapsedTemplate,
-                    onValueChange = { elapsedTemplate = it },
-                    enabled = elapsedTiming != ElapsedSpeechTiming.NEVER,
-                    label = { Text("Elapsed time speech text") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 16.dp)
-                )
             }
         }
     }
@@ -239,10 +175,10 @@ private fun SpeechFormatChoice(
     onClick: () -> Unit
 ) {
     val description = when (option) {
-        TimerSpeechFormat.OFF -> "Do not speak when an alarm or timer finishes"
-        TimerSpeechFormat.TIME -> "Speak the time or timer duration"
-        TimerSpeechFormat.LABEL -> "Speak only the alarm or timer label"
-        TimerSpeechFormat.TIME_AND_LABEL -> "Speak the time/duration, then the label"
+        TimerSpeechFormat.OFF -> "Do not speak when a timer finishes"
+        TimerSpeechFormat.TIME -> "Speak the timer duration"
+        TimerSpeechFormat.LABEL -> "Speak only the timer label"
+        TimerSpeechFormat.TIME_AND_LABEL -> "Speak the duration, then the label"
         TimerSpeechFormat.CUSTOM -> "Write exactly what should be spoken"
     }
     Row(
@@ -273,23 +209,5 @@ private fun TokenDescription(token: String, description: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium
         )
-    }
-}
-
-@Composable
-private fun ElapsedTimingChoice(
-    timing: ElapsedSpeechTiming,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Text(timing.label, modifier = Modifier.padding(start = 8.dp))
     }
 }

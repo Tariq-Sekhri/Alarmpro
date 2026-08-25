@@ -45,37 +45,26 @@ fun timerSpeechText(
 }
 
 fun alarmSpeechText(
-    format: TimerSpeechFormat,
     label: String,
-    template: String,
-    use24HourFormat: Boolean
+    templateWithLabel: String,
+    templateWithoutLabel: String,
+    use24HourFormat: Boolean,
+    weather: String = ""
 ): String? {
-    if (format == TimerSpeechFormat.OFF) return null
     val now = LocalDateTime.now()
     val time = now.format(
         DateTimeFormatter.ofPattern(if (use24HourFormat) "HH:mm" else "h:mm a", Locale.getDefault())
     )
-    return when (format) {
-        TimerSpeechFormat.OFF -> null
-        TimerSpeechFormat.TIME -> time
-        TimerSpeechFormat.LABEL -> label.takeIf { it.isNotBlank() }
-        TimerSpeechFormat.TIME_AND_LABEL -> listOf(time, label.trim())
-            .filter { it.isNotBlank() }
-            .joinToString(". ")
-        TimerSpeechFormat.CUSTOM -> template
-            .replace("\$t", time)
-            .replace("\$l", label.trim())
-            .replace("\$d", now.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault()))
-            .replace("\$m", now.toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)))
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .takeIf { it.isNotBlank() }
-    }
-}
-
-enum class ElapsedSpeechTiming(val label: String) {
-    AFTER_EACH_SNOOZE("After each snooze"),
-    NEVER("Never")
+    val template = if (label.isBlank()) templateWithoutLabel.ifBlank { templateWithLabel } else templateWithLabel
+    return template
+        .replace("\$t", time)
+        .replace("\$l", label.trim())
+        .replace("\$d", now.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault()))
+        .replace("\$m", now.toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)))
+        .replace("\$w", weather)
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .takeIf { it.isNotBlank() }
 }
 
 /**
@@ -103,7 +92,8 @@ fun formatTimerSpeechTemplate(
 }
 
 const val DEFAULT_TIMER_SPEECH_TEMPLATE = "\$l finished. \$t."
-const val DEFAULT_ELAPSED_SPEECH_TEMPLATE = "This alarm or timer has been active for \$e."
+const val DEFAULT_ALARM_SPEECH_WITH_LABEL = "The time is \$t. \$l."
+const val DEFAULT_ALARM_SPEECH_WITHOUT_LABEL = "The time is \$t."
 
 fun formatDurationForSpeech(totalSeconds: Int): String {
     val hours = totalSeconds / 3600

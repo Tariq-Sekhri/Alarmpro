@@ -35,6 +35,7 @@ import ca.sekhrit.alarmpro.ui.screens.StopwatchSettingsScreen
 import ca.sekhrit.alarmpro.ui.screens.TimerScreen
 import ca.sekhrit.alarmpro.ui.screens.TimerSettingsScreen
 import ca.sekhrit.alarmpro.ui.screens.TimerSpeechFormatScreen
+import ca.sekhrit.alarmpro.ui.screens.AlarmSpeechFormatScreen
 import ca.sekhrit.alarmpro.ui.theme.AlarmProTheme
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 
@@ -183,7 +184,14 @@ fun MainScreen(alarmViewModel: AlarmViewModel, intentFlow: SharedFlow<Intent>) {
                 )
             }
             composable("settings/default-alarm") {
-                DefaultAlarmSettingsScreen(onBack = { navController.popBackStack() }, viewModel = alarmViewModel)
+                DefaultAlarmSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenSpeechFormat = { navController.navigate("settings/alarm/speech") },
+                    viewModel = alarmViewModel
+                )
+            }
+            composable("settings/alarm/speech") {
+                AlarmSpeechFormatScreen(onBack = { navController.popBackStack() }, viewModel = alarmViewModel)
             }
             composable("settings/timer") {
                 TimerSettingsScreen(

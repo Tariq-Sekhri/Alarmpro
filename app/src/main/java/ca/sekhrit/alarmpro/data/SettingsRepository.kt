@@ -16,16 +16,10 @@ class SettingsRepository(context: Context) {
             timerSpeechFormat = TimerSpeechFormat.fromStored(prefs.getString(KEY_TIMER_SPEECH, null)),
             timerSpeechTemplate = prefs.getString(KEY_TIMER_SPEECH_TEMPLATE, DEFAULT_TIMER_SPEECH_TEMPLATE)
                 ?.takeIf { it.isNotBlank() } ?: DEFAULT_TIMER_SPEECH_TEMPLATE,
-            timerElapsedSpeechTiming = try {
-                ElapsedSpeechTiming.valueOf(
-                    prefs.getString(KEY_TIMER_ELAPSED_SPEECH_TIMING, ElapsedSpeechTiming.AFTER_EACH_SNOOZE.name)
-                        ?: ElapsedSpeechTiming.AFTER_EACH_SNOOZE.name
-                )
-            } catch (_: Exception) { ElapsedSpeechTiming.AFTER_EACH_SNOOZE },
-            timerElapsedSpeechTemplate = prefs.getString(
-                KEY_TIMER_ELAPSED_SPEECH_TEMPLATE,
-                DEFAULT_ELAPSED_SPEECH_TEMPLATE
-            )?.takeIf { it.isNotBlank() } ?: DEFAULT_ELAPSED_SPEECH_TEMPLATE,
+            alarmSpeechWithLabel = prefs.getString(KEY_ALARM_SPEECH_WITH_LABEL, DEFAULT_ALARM_SPEECH_WITH_LABEL)
+                ?.takeIf { it.isNotBlank() } ?: DEFAULT_ALARM_SPEECH_WITH_LABEL,
+            alarmSpeechWithoutLabel = prefs.getString(KEY_ALARM_SPEECH_WITHOUT_LABEL, DEFAULT_ALARM_SPEECH_WITHOUT_LABEL)
+                ?: DEFAULT_ALARM_SPEECH_WITHOUT_LABEL,
             speechRate = SpeechRate.fromName(prefs.getString(KEY_SPEECH_RATE, null)),
             upcomingAlarmLeadMinutes = prefs.getInt(KEY_UPCOMING_ALARM_LEAD, 60),
             timePickerStyle = try {
@@ -66,8 +60,8 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_24H, settings.use24HourFormat)
             .putString(KEY_TIMER_SPEECH, settings.timerSpeechFormat.name)
             .putString(KEY_TIMER_SPEECH_TEMPLATE, settings.timerSpeechTemplate)
-            .putString(KEY_TIMER_ELAPSED_SPEECH_TIMING, settings.timerElapsedSpeechTiming.name)
-            .putString(KEY_TIMER_ELAPSED_SPEECH_TEMPLATE, settings.timerElapsedSpeechTemplate)
+            .putString(KEY_ALARM_SPEECH_WITH_LABEL, settings.alarmSpeechWithLabel)
+            .putString(KEY_ALARM_SPEECH_WITHOUT_LABEL, settings.alarmSpeechWithoutLabel)
             .putString(KEY_SPEECH_RATE, settings.speechRate.name)
             .putInt(KEY_UPCOMING_ALARM_LEAD, settings.upcomingAlarmLeadMinutes)
             .putString(KEY_TIME_PICKER_STYLE, settings.timePickerStyle.name)
@@ -92,8 +86,8 @@ class SettingsRepository(context: Context) {
         private const val KEY_24H = "use_24h"
         private const val KEY_TIMER_SPEECH = "timer_speech_format"
         private const val KEY_TIMER_SPEECH_TEMPLATE = "timer_speech_template"
-        private const val KEY_TIMER_ELAPSED_SPEECH_TIMING = "timer_elapsed_speech_timing"
-        private const val KEY_TIMER_ELAPSED_SPEECH_TEMPLATE = "timer_elapsed_speech_template"
+        private const val KEY_ALARM_SPEECH_WITH_LABEL = "alarm_speech_with_label"
+        private const val KEY_ALARM_SPEECH_WITHOUT_LABEL = "alarm_speech_without_label"
         private const val KEY_SPEECH_RATE = "speech_rate"
         private const val KEY_UPCOMING_ALARM_LEAD = "upcoming_alarm_lead_minutes"
         private const val KEY_TIME_PICKER_STYLE = "time_picker_style"

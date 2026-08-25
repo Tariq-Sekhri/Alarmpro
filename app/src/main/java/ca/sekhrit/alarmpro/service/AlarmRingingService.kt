@@ -87,9 +87,9 @@ class AlarmRingingService : Service() {
         if (readLabelAloud) {
             val settings = SettingsRepository(this).load()
             alarmSpeechText(
-                format = settings.timerSpeechFormat,
                 label = label,
-                template = settings.timerSpeechTemplate,
+                templateWithLabel = settings.alarmSpeechWithLabel,
+                templateWithoutLabel = settings.alarmSpeechWithoutLabel,
                 use24HourFormat = settings.use24HourFormat
             )?.let(::speakText)
         }

@@ -35,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.ui.components.AlarmSoundPickerRow
 import ca.sekhrit.alarmpro.ui.components.DurationPickerDialog
 import ca.sekhrit.alarmpro.ui.components.SettingsSwitchRow
+import ca.sekhrit.alarmpro.ui.components.SettingsValueRow
 import ca.sekhrit.alarmpro.util.AlarmSoundUtils
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
@@ -43,6 +44,7 @@ import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 @Composable
 fun DefaultAlarmSettingsScreen(
     onBack: () -> Unit,
+    onOpenSpeechFormat: () -> Unit,
     viewModel: AlarmViewModel = viewModel()
 ) {
     val settings by viewModel.settings.collectAsState()
@@ -200,6 +202,11 @@ fun DefaultAlarmSettingsScreen(
                 onCheckedChange = {
                     viewModel.updateSettings(settings.copy(defaultReadLabelAloud = it))
                 }
+            )
+            SettingsValueRow(
+                title = "Alarm speech format",
+                value = "Customize speech text",
+                onClick = onOpenSpeechFormat
             )
         }
     }
