@@ -41,8 +41,8 @@ fun timerSpeechText(
 
 /**
  * Expands a timer speech template. `$t` is the natural duration, `$l` the label,
- * and `$h`, `$m`, `$s` the individual hours, minutes, and seconds. Text inside
- * brackets that contains `$l` is only spoken when a label is available.
+ * and `$h`, `$m`, `$s` the individual hours, minutes, and seconds. Every `$`
+ * starts a special token; all other text is spoken exactly as written.
  */
 fun formatTimerSpeechTemplate(
     template: String,
@@ -57,16 +57,13 @@ fun formatTimerSpeechTemplate(
         "\$m" to ((safeSeconds % 3600) / 60).toString(),
         "\$s" to (safeSeconds % 60).toString()
     )
-    val withoutOptionalLabel = Regex("\\[([^\\[\\]]*\\\$l[^\\[\\]]*)]").replace(template) { match ->
-        if (label.isBlank()) "" else match.groupValues[1]
-    }
-    val expanded = values.entries.fold(withoutOptionalLabel) { text, (token, value) ->
+    val expanded = values.entries.fold(template) { text, (token, value) ->
         text.replace(token, value)
     }.replace(Regex("\\s+"), " ").trim()
     return expanded.takeIf { it.isNotBlank() }
 }
 
-const val DEFAULT_TIMER_SPEECH_TEMPLATE = "Timer finished: \$t[. \$l]"
+const val DEFAULT_TIMER_SPEECH_TEMPLATE = "Timer finished: \$t. \$l."
 
 fun formatDurationForSpeech(totalSeconds: Int): String {
     val hours = totalSeconds / 3600
