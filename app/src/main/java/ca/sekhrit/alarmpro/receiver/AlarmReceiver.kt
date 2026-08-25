@@ -3,6 +3,7 @@ package ca.sekhrit.alarmpro.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import ca.sekhrit.alarmpro.AlarmRingActivity
 import ca.sekhrit.alarmpro.data.AlarmGroupRepository
 import ca.sekhrit.alarmpro.data.AlarmRepository
@@ -82,6 +83,22 @@ class AlarmReceiver : BroadcastReceiver() {
 
         NotificationHelper.cancelUpcomingNotification(context, alarmId)
 
+        // Launch the interaction surface from the exact-alarm delivery while
+        // that delivery is still allowed to bring an activity forward.  The
+        // foreground service then owns the sound and its full-screen
+        // notification is a second delivery route if Android declines this
+        // direct launch.
+        launchRingingActivity(
+            context = context,
+            ringType = AlarmRingActivity.TYPE_ALARM,
+            alarmId = alarmId,
+            hour = alarm.time.hour,
+            minute = alarm.time.minute,
+            label = spokenLabel,
+            snoozeAllowed = snoozeAllowed,
+            snoozeMinutes = snoozeMinutes
+        )
+
         AlarmRingingService.startAlarm(
             context = context,
             alarmId = alarmId,
@@ -94,16 +111,6 @@ class AlarmReceiver : BroadcastReceiver() {
             snoozeMinutes = snoozeMinutes,
             soundUri = soundUri,
             isSnooze = intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
-        )
-        launchRingingActivity(
-            context = context,
-            ringType = AlarmRingActivity.TYPE_ALARM,
-            alarmId = alarmId,
-            hour = alarm.time.hour,
-            minute = alarm.time.minute,
-            label = spokenLabel,
-            snoozeAllowed = snoozeAllowed,
-            snoozeMinutes = snoozeMinutes
         )
     }
 
@@ -161,7 +168,6 @@ class AlarmReceiver : BroadcastReceiver() {
                 NotificationHelper.cancelTimerNotification(context, timerId)
                 repository.removeTimer(timerId)
                 TimerViewModel.instance()?.syncFromStorage()
-                AlarmRingingService.startTimer(context, timerId, label, totalSeconds)
                 launchRingingActivity(
                     context = context,
                     ringType = AlarmRingActivity.TYPE_TIMER,
@@ -169,6 +175,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     label = label,
                     totalSeconds = totalSeconds
                 )
+                AlarmRingingService.startTimer(context, timerId, label, totalSeconds)
             }
         }
 
@@ -206,6 +213,11 @@ class AlarmReceiver : BroadcastReceiver() {
                         putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
                     }
                 )
+            }.onFailure { error ->
+                // Keep this visible in logcat: the foreground-service
+                // notification remains the fallback, but a swallowed failure
+                // made locked-device delivery impossible to diagnose.
+                Log.e("AlarmReceiver", "Could not launch ringing activity", error)
             }
         }
 
