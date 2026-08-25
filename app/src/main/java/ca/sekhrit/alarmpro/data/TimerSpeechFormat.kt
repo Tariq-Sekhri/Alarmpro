@@ -75,7 +75,6 @@ fun alarmSpeechText(
 
 enum class ElapsedSpeechTiming(val label: String) {
     AFTER_EACH_SNOOZE("After each snooze"),
-    ALWAYS("Always"),
     NEVER("Never")
 }
 

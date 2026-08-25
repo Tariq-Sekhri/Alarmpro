@@ -11,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -56,7 +58,25 @@ fun TimerSpeechFormatScreen(
     var elapsedTemplate by remember(settings.timerElapsedSpeechTemplate) {
         mutableStateOf(settings.timerElapsedSpeechTemplate)
     }
+    var showElapsedHelp by remember { mutableStateOf(false) }
     val preview = formatTimerSpeechTemplate(template, label = "Pasta", totalSeconds = 300)
+
+    if (showElapsedHelp) {
+        AlertDialog(
+            onDismissRequest = { showElapsedHelp = false },
+            title = { Text("Elapsed time") },
+            text = {
+                Text(
+                    "After each snooze: speak elapsed time when the alarm rings again after snoozing.\n\n" +
+                        "Never: do not speak elapsed time.\n\n" +
+                        "Use \$e for elapsed time. Example: This alarm has been active for \$e."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showElapsedHelp = false }) { Text("Got it") }
+            }
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -177,22 +197,20 @@ fun TimerSpeechFormatScreen(
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
 
-                Text(
-                    text = "2) Elapsed Time",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = WarmAmber,
-                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
-                )
-                Text(
-                    text = "The elapsed time is spoken after the primary text. It is not spoken for the first minute.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "When do you want the elapsed time spoken?",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "2) Elapsed Time",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = WarmAmber,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { showElapsedHelp = true }) {
+                        Icon(Icons.Default.HelpOutline, contentDescription = "Elapsed time help")
+                    }
+                }
                 ElapsedSpeechTiming.entries.forEach { timing ->
                     ElapsedTimingChoice(
                         timing = timing,
@@ -200,12 +218,6 @@ fun TimerSpeechFormatScreen(
                         onClick = { elapsedTiming = timing }
                     )
                 }
-                Text(
-                    text = "Use \$e for elapsed time (example: 10 minutes). Example: “This alarm or timer has been active for \$e.”",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
                 OutlinedTextField(
                     value = elapsedTemplate,
                     onValueChange = { elapsedTemplate = it },
@@ -278,20 +290,6 @@ private fun ElapsedTimingChoice(
         verticalAlignment = Alignment.CenterVertically
     ) {
         RadioButton(selected = selected, onClick = onClick)
-        Column(modifier = Modifier.padding(start = 8.dp)) {
-            Text(timing.label)
-            Text(
-                text = when (timing) {
-                    ElapsedSpeechTiming.AFTER_EACH_SNOOZE ->
-                        "Only after you snooze and the alarm rings again. Example: after one snooze, “This alarm has been active for 10 minutes.”"
-                    ElapsedSpeechTiming.ALWAYS ->
-                        "Every time it rings, after the primary speech. Example: “Pasta finished. This timer has been active for 5 minutes.”"
-                    ElapsedSpeechTiming.NEVER ->
-                        "Never speak elapsed time; only the primary speech is used."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(timing.label, modifier = Modifier.padding(start = 8.dp))
     }
 }
