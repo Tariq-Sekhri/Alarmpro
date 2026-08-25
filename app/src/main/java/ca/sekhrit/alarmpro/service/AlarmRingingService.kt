@@ -16,6 +16,7 @@ import android.speech.tts.TextToSpeech
 import androidx.core.content.ContextCompat
 import ca.sekhrit.alarmpro.AlarmRingActivity
 import ca.sekhrit.alarmpro.data.SettingsRepository
+import ca.sekhrit.alarmpro.data.alarmSpeechText
 import ca.sekhrit.alarmpro.data.timerSpeechText
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
@@ -83,7 +84,15 @@ class AlarmRingingService : Service() {
                 ?: AlarmSoundUtils.systemDefaultUri()
         )
         if (vibrate) startVibration()
-        if (readLabelAloud && label.isNotBlank()) speakText(label)
+        if (readLabelAloud) {
+            val settings = SettingsRepository(this).load()
+            alarmSpeechText(
+                format = settings.timerSpeechFormat,
+                label = label,
+                template = settings.timerSpeechTemplate,
+                use24HourFormat = settings.use24HourFormat
+            )?.let(::speakText)
+        }
     }
 
     private fun startTimer(intent: Intent) {

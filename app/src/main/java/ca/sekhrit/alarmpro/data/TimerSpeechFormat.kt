@@ -1,5 +1,10 @@
 package ca.sekhrit.alarmpro.data
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+
 enum class TimerSpeechFormat(val label: String) {
     OFF("Off"),
     TIME("Time"),
@@ -36,6 +41,35 @@ fun timerSpeechText(
             label = label,
             totalSeconds = totalSeconds
         )
+    }
+}
+
+fun alarmSpeechText(
+    format: TimerSpeechFormat,
+    label: String,
+    template: String,
+    use24HourFormat: Boolean
+): String? {
+    if (format == TimerSpeechFormat.OFF) return null
+    val now = LocalDateTime.now()
+    val time = now.format(
+        DateTimeFormatter.ofPattern(if (use24HourFormat) "HH:mm" else "h:mm a", Locale.getDefault())
+    )
+    return when (format) {
+        TimerSpeechFormat.OFF -> null
+        TimerSpeechFormat.TIME -> time
+        TimerSpeechFormat.LABEL -> label.takeIf { it.isNotBlank() }
+        TimerSpeechFormat.TIME_AND_LABEL -> listOf(time, label.trim())
+            .filter { it.isNotBlank() }
+            .joinToString(". ")
+        TimerSpeechFormat.CUSTOM -> template
+            .replace("\$t", time)
+            .replace("\$l", label.trim())
+            .replace("\$d", now.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault()))
+            .replace("\$m", now.toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)))
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .takeIf { it.isNotBlank() }
     }
 }
 
