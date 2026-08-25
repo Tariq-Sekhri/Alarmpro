@@ -105,8 +105,13 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (label.isBlank()) "Alarm" else label
-        val silent = SettingsRepository(context).load().silentNotifications
+        val settings = SettingsRepository(context).load()
+        val timeText = TimeUtils.formatTime(
+            java.time.LocalTime.of(hour, minute),
+            settings.use24HourFormat
+        ).replace(" ", "").lowercase()
+        val title = "${if (label.isBlank()) "Alarm" else label} - $timeText"
+        val silent = settings.silentNotifications
         val builder = NotificationCompat.Builder(context, ALARM_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
