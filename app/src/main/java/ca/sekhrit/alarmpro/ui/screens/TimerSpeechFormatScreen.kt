@@ -130,38 +130,39 @@ fun TimerSpeechFormatScreen(
                 )
             }
 
-            Text(
-                text = "Custom speech text",
-                style = MaterialTheme.typography.titleMedium,
-                color = WarmAmber,
-                modifier = Modifier.padding(top = 20.dp, bottom = 8.dp)
-            )
-            Text(
-                text = "Every \$ begins a special token. Everything else is spoken exactly as you type it.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            TokenDescription(token = "\$t", description = "timer duration (example: 10 minutes)")
-            TokenDescription(token = "\$l", description = "timer label")
-            TokenDescription(token = "\$h", description = "total hours")
-            TokenDescription(token = "\$m", description = "remaining minutes")
-            TokenDescription(token = "\$s", description = "remaining seconds")
-            OutlinedTextField(
-                value = template,
-                onValueChange = { template = it },
-                enabled = format == TimerSpeechFormat.CUSTOM,
-                label = { Text("Speech text") },
-                placeholder = { Text("Timer finished: \$t. \$l.") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp)
-            )
-            Text(
-                text = "Preview: ${preview ?: "No speech"}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
+            if (format == TimerSpeechFormat.CUSTOM) {
+                Text(
+                    text = "Custom speech text",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = WarmAmber,
+                    modifier = Modifier.padding(top = 20.dp, bottom = 8.dp)
+                )
+                Text(
+                    text = "Every \$ begins a special token. Everything else is spoken exactly as you type it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TokenDescription(token = "\$t", description = "timer duration (example: 10 minutes)")
+                TokenDescription(token = "\$l", description = "timer label")
+                TokenDescription(token = "\$h", description = "total hours")
+                TokenDescription(token = "\$m", description = "remaining minutes")
+                TokenDescription(token = "\$s", description = "remaining seconds")
+                OutlinedTextField(
+                    value = template,
+                    onValueChange = { template = it },
+                    label = { Text("Speech text") },
+                    placeholder = { Text("Timer finished: \$t. \$l.") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                )
+                Text(
+                    text = "Preview: ${preview ?: "No speech"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            }
         }
     }
 }

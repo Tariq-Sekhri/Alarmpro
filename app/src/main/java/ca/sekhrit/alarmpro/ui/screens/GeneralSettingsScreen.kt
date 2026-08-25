@@ -34,7 +34,6 @@ import ca.sekhrit.alarmpro.util.BackupRestore
 import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
 import ca.sekhrit.alarmpro.data.AlarmSortMode
 import ca.sekhrit.alarmpro.data.TimePickerStyle
-import ca.sekhrit.alarmpro.data.TimerSpeechFormat
 import ca.sekhrit.alarmpro.data.SpeechRate
 import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.ui.components.SettingsCategoryHeader
@@ -47,12 +46,12 @@ import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 @Composable
 fun GeneralSettingsScreen(
     onBack: () -> Unit,
+    onOpenTimerSpeechFormat: () -> Unit,
     viewModel: AlarmViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val settings by viewModel.settings.collectAsState()
-    var showSpeechDialog by remember { mutableStateOf(false) }
     var showSpeechRateDialog by remember { mutableStateOf(false) }
     var showUpcomingDialog by remember { mutableStateOf(false) }
     var showTimePickerStyleDialog by remember { mutableStateOf(false) }
@@ -60,9 +59,6 @@ fun GeneralSettingsScreen(
 
     val timePickerOptions = remember { TimePickerStyle.entries.map { it.label } }
     val timePickerSelectedIndex = TimePickerStyle.entries.indexOf(settings.timePickerStyle)
-
-    val speechOptions = remember { TimerSpeechFormat.entries.map { it.label } }
-    val speechSelectedIndex = TimerSpeechFormat.entries.indexOf(settings.timerSpeechFormat)
 
     val speechRateOptions = remember { SpeechRate.entries.map { it.label } }
     val speechRateSelectedIndex = SpeechRate.entries.indexOf(settings.speechRate)
@@ -105,21 +101,6 @@ fun GeneralSettingsScreen(
                 }
             }
         }
-    }
-
-    if (showSpeechDialog) {
-        SettingsOptionDialog(
-            title = "Timer speech format",
-            options = speechOptions,
-            selectedIndex = speechSelectedIndex,
-            onDismiss = { showSpeechDialog = false },
-            onSelect = { index ->
-                viewModel.updateSettings(
-                    settings.copy(timerSpeechFormat = TimerSpeechFormat.entries[index])
-                )
-                showSpeechDialog = false
-            }
-        )
     }
 
     if (showSpeechRateDialog) {
@@ -225,7 +206,7 @@ fun GeneralSettingsScreen(
             SettingsValueRow(
                 title = "Timer speech format",
                 value = settings.timerSpeechFormat.label,
-                onClick = { showSpeechDialog = true }
+                onClick = onOpenTimerSpeechFormat
             )
             SettingsValueRow(
                 title = "Speech rate",
