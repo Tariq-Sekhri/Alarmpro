@@ -46,7 +46,7 @@ import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 @Composable
 fun GeneralSettingsScreen(
     onBack: () -> Unit,
-    onOpenTimerSpeechFormat: () -> Unit,
+    onOpenAlarmSpeechFormat: () -> Unit,
     viewModel: AlarmViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -204,9 +204,9 @@ fun GeneralSettingsScreen(
 
             SettingsCategoryHeader("Speech Settings")
             SettingsValueRow(
-                title = "Timer speech format",
-                value = settings.timerSpeechFormat.label,
-                onClick = onOpenTimerSpeechFormat
+                title = "Alarm speech format",
+                value = "Customize speech text",
+                onClick = onOpenAlarmSpeechFormat
             )
             SettingsValueRow(
                 title = "Speech rate",

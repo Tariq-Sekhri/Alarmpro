@@ -179,7 +179,7 @@ fun MainScreen(alarmViewModel: AlarmViewModel, intentFlow: SharedFlow<Intent>) {
             composable("settings/general") {
                 GeneralSettingsScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenTimerSpeechFormat = { navController.navigate("settings/timer/speech") },
+                    onOpenAlarmSpeechFormat = { navController.navigate("settings/alarm/speech") },
                     viewModel = alarmViewModel
                 )
             }
