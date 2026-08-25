@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.DEFAULT_TIMER_SPEECH_TEMPLATE
+import ca.sekhrit.alarmpro.data.DEFAULT_ELAPSED_SPEECH_TEMPLATE
+import ca.sekhrit.alarmpro.data.ElapsedSpeechTiming
 import ca.sekhrit.alarmpro.data.TimerSpeechFormat
 import ca.sekhrit.alarmpro.data.formatTimerSpeechTemplate
 import ca.sekhrit.alarmpro.ui.theme.WarmAmber
@@ -48,6 +50,12 @@ fun TimerSpeechFormatScreen(
     val settings by viewModel.settings.collectAsState()
     var format by remember(settings.timerSpeechFormat) { mutableStateOf(settings.timerSpeechFormat) }
     var template by remember(settings.timerSpeechTemplate) { mutableStateOf(settings.timerSpeechTemplate) }
+    var elapsedTiming by remember(settings.timerElapsedSpeechTiming) {
+        mutableStateOf(settings.timerElapsedSpeechTiming)
+    }
+    var elapsedTemplate by remember(settings.timerElapsedSpeechTemplate) {
+        mutableStateOf(settings.timerElapsedSpeechTemplate)
+    }
     val preview = formatTimerSpeechTemplate(template, label = "Pasta", totalSeconds = 300)
 
     Scaffold(
@@ -83,6 +91,10 @@ fun TimerSpeechFormatScreen(
                                 timerSpeechFormat = format,
                                 timerSpeechTemplate = template.trim().ifBlank {
                                     DEFAULT_TIMER_SPEECH_TEMPLATE
+                                },
+                                timerElapsedSpeechTiming = elapsedTiming,
+                                timerElapsedSpeechTemplate = elapsedTemplate.trim().ifBlank {
+                                    DEFAULT_ELAPSED_SPEECH_TEMPLATE
                                 }
                             )
                         )
@@ -110,6 +122,8 @@ fun TimerSpeechFormatScreen(
                 onClick = {
                     format = TimerSpeechFormat.TIME_AND_LABEL
                     template = DEFAULT_TIMER_SPEECH_TEMPLATE
+                    elapsedTiming = ElapsedSpeechTiming.AFTER_EACH_SNOOZE
+                    elapsedTemplate = DEFAULT_ELAPSED_SPEECH_TEMPLATE
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -162,6 +176,45 @@ fun TimerSpeechFormatScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
+
+                Text(
+                    text = "2) Elapsed Time",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = WarmAmber,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
+                )
+                Text(
+                    text = "The elapsed time is spoken after the primary text. It is not spoken for the first minute.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "When do you want the elapsed time spoken?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                ElapsedSpeechTiming.entries.forEach { timing ->
+                    ElapsedTimingChoice(
+                        timing = timing,
+                        selected = elapsedTiming == timing,
+                        onClick = { elapsedTiming = timing }
+                    )
+                }
+                Text(
+                    text = "Use \$e for elapsed time (example: 10 minutes).",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                OutlinedTextField(
+                    value = elapsedTemplate,
+                    onValueChange = { elapsedTemplate = it },
+                    enabled = elapsedTiming != ElapsedSpeechTiming.NEVER,
+                    label = { Text("Elapsed time speech text") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 16.dp)
+                )
             }
         }
     }
@@ -208,5 +261,23 @@ private fun TokenDescription(token: String, description: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium
         )
+    }
+}
+
+@Composable
+private fun ElapsedTimingChoice(
+    timing: ElapsedSpeechTiming,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(timing.label, modifier = Modifier.padding(start = 8.dp))
     }
 }

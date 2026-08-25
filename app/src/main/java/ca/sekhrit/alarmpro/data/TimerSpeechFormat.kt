@@ -39,6 +39,12 @@ fun timerSpeechText(
     }
 }
 
+enum class ElapsedSpeechTiming(val label: String) {
+    AFTER_EACH_SNOOZE("After each snooze"),
+    ALWAYS("Always"),
+    NEVER("Never")
+}
+
 /**
  * Expands a timer speech template. `$t` is the natural duration, `$l` the label,
  * and `$h`, `$m`, `$s` the individual hours, minutes, and seconds. Every `$`
@@ -64,6 +70,7 @@ fun formatTimerSpeechTemplate(
 }
 
 const val DEFAULT_TIMER_SPEECH_TEMPLATE = "Timer finished: \$t. \$l."
+const val DEFAULT_ELAPSED_SPEECH_TEMPLATE = "Your timer has been active for \$e."
 
 fun formatDurationForSpeech(totalSeconds: Int): String {
     val hours = totalSeconds / 3600

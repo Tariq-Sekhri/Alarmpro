@@ -30,6 +30,8 @@ data class AppSettings(
     val use24HourFormat: Boolean = false,
     val timerSpeechFormat: TimerSpeechFormat = TimerSpeechFormat.TIME_AND_LABEL,
     val timerSpeechTemplate: String = DEFAULT_TIMER_SPEECH_TEMPLATE,
+    val timerElapsedSpeechTiming: ElapsedSpeechTiming = ElapsedSpeechTiming.AFTER_EACH_SNOOZE,
+    val timerElapsedSpeechTemplate: String = DEFAULT_ELAPSED_SPEECH_TEMPLATE,
     val speechRate: SpeechRate = SpeechRate.NORMAL,
     val upcomingAlarmLeadMinutes: Int = 60,
     val timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
