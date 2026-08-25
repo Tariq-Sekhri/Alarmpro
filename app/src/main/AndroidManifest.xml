@@ -31,6 +31,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AlarmPro">
 
+        <!-- Lets Google Assistant/Gemini discover the App Actions declared for AlarmPro. -->
+        <meta-data
+            android:name="android.app.shortcuts"
+            android:resource="@xml/shortcuts" />
+
         <receiver
             android:name=".receiver.AlarmReceiver"
             android:enabled="true"

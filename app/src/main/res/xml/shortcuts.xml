@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Makes the Stopwatch screen discoverable as an AlarmPro app feature. -->
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="ca.sekhrit.alarmpro"
+            android:targetClass="ca.sekhrit.alarmpro.AlarmClockCommandActivity">
+            <parameter
+                android:name="feature"
+                android:key="feature" />
+        </intent>
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="ca.sekhrit.alarmpro"
+            android:targetClass="ca.sekhrit.alarmpro.AlarmClockCommandActivity" />
+    </capability>
+
+    <shortcut android:shortcutId="stopwatch">
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding
+                android:key="feature"
+                android:value="@array/stopwatch_feature_names" />
+        </capability-binding>
+    </shortcut>
+
+    <!-- Covers direct phrases such as 'start a stopwatch in Alarm Pro'. -->
+    <capability
+        android:name="custom.actions.intent.START_STOPWATCH"
+        app:queryPatterns="@array/start_stopwatch_queries">
+        <intent
+            android:action="com.android.deskclock.action.START_STOPWATCH"
+            android:targetPackage="ca.sekhrit.alarmpro"
+            android:targetClass="ca.sekhrit.alarmpro.AlarmClockCommandActivity" />
+    </capability>
+</shortcuts>

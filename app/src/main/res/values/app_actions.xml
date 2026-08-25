@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="stopwatch_feature_names">
+        <item>stopwatch</item>
+        <item>stop watch</item>
+        <item>time tracker</item>
+    </string-array>
+
+    <string-array name="start_stopwatch_queries">
+        <item>start a stopwatch</item>
+        <item>start stopwatch</item>
+        <item>start my stopwatch</item>
+        <item>begin a stopwatch</item>
+    </string-array>
+</resources>

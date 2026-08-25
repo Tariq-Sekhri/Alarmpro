@@ -42,9 +42,17 @@ class AlarmClockCommandActivity : Activity() {
             AlarmClock.ACTION_SET_TIMER -> setTimer(command)
             AlarmClock.ACTION_SHOW_ALARMS -> openMain("alarm")
             AlarmClock.ACTION_SHOW_TIMERS -> openMain("timer")
+            Intent.ACTION_VIEW -> openFeature(command.getStringExtra("feature"))
             "com.android.deskclock.action.START_STOPWATCH" -> openMain("stopwatch", command = "START_STOPWATCH")
             "com.android.deskclock.action.STOP_STOPWATCH" -> openMain("stopwatch", command = "STOP_STOPWATCH")
             "com.android.deskclock.action.RESET_STOPWATCH" -> openMain("stopwatch", command = "RESET_STOPWATCH")
+            else -> openMain("alarm")
+        }
+    }
+
+    private fun openFeature(feature: String?) {
+        when (feature?.lowercase()) {
+            "stopwatch", "stop watch", "time tracker" -> openMain("stopwatch")
             else -> openMain("alarm")
         }
     }
