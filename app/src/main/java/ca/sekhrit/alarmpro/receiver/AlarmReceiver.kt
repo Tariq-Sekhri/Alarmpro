@@ -92,7 +92,8 @@ class AlarmReceiver : BroadcastReceiver() {
             readLabelAloud = alarm.readLabelAloud,
             snoozeAllowed = snoozeAllowed,
             snoozeMinutes = snoozeMinutes,
-            soundUri = soundUri
+            soundUri = soundUri,
+            isSnooze = intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
         )
         launchRingingActivity(
             context = context,

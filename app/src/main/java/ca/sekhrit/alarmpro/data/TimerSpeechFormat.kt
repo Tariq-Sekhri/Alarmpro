@@ -44,6 +44,12 @@ fun timerSpeechText(
     }
 }
 
+enum class AlarmElapsedSpeechTiming(val label: String) {
+    AFTER_EACH_SNOOZE("After each snooze"),
+    ALWAYS("Always"),
+    NEVER("Never")
+}
+
 fun alarmSpeechText(
     label: String,
     templateWithLabel: String,
@@ -94,6 +100,7 @@ fun formatTimerSpeechTemplate(
 const val DEFAULT_TIMER_SPEECH_TEMPLATE = "\$l finished. \$t."
 const val DEFAULT_ALARM_SPEECH_WITH_LABEL = "The time is \$t. \$l."
 const val DEFAULT_ALARM_SPEECH_WITHOUT_LABEL = "The time is \$t."
+const val DEFAULT_ALARM_ELAPSED_SPEECH_TEMPLATE = "Your alarm has been active for \$e."
 
 fun formatDurationForSpeech(totalSeconds: Int): String {
     val hours = totalSeconds / 3600

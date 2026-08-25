@@ -16,8 +16,11 @@ import android.speech.tts.TextToSpeech
 import androidx.core.content.ContextCompat
 import ca.sekhrit.alarmpro.AlarmRingActivity
 import ca.sekhrit.alarmpro.data.SettingsRepository
+import ca.sekhrit.alarmpro.data.AlarmElapsedSpeechTiming
 import ca.sekhrit.alarmpro.data.alarmSpeechText
+import ca.sekhrit.alarmpro.data.formatDurationForSpeech
 import ca.sekhrit.alarmpro.data.timerSpeechText
+import ca.sekhrit.alarmpro.receiver.AlarmScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
 import ca.sekhrit.alarmpro.util.AlarmSoundUtils
@@ -65,6 +68,7 @@ class AlarmRingingService : Service() {
             intent.getBooleanExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, true)
         val snoozeMinutes =
             intent.getIntExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, 10)
+        val isSnooze = intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
 
         val notification = NotificationHelper.buildAlarmNotification(
             context = this,
@@ -86,12 +90,35 @@ class AlarmRingingService : Service() {
         if (vibrate) startVibration()
         if (readLabelAloud) {
             val settings = SettingsRepository(this).load()
-            alarmSpeechText(
+            val primarySpeech = alarmSpeechText(
                 label = label,
                 templateWithLabel = settings.alarmSpeechWithLabel,
                 templateWithoutLabel = settings.alarmSpeechWithoutLabel,
                 use24HourFormat = settings.use24HourFormat
-            )?.let(::speakText)
+            )
+            val scheduledTime = java.time.LocalDateTime.now()
+                .withHour(hour)
+                .withMinute(minute)
+                .withSecond(0)
+                .withNano(0)
+                .let { if (it.isAfter(java.time.LocalDateTime.now())) it.minusDays(1) else it }
+            val elapsedMinutes = java.time.temporal.ChronoUnit.MINUTES
+                .between(scheduledTime, java.time.LocalDateTime.now())
+                .coerceAtLeast(0)
+            val speakElapsed = elapsedMinutes >= 1 && when (settings.alarmElapsedSpeechTiming) {
+                AlarmElapsedSpeechTiming.AFTER_EACH_SNOOZE -> isSnooze
+                AlarmElapsedSpeechTiming.ALWAYS -> true
+                AlarmElapsedSpeechTiming.NEVER -> false
+            }
+            val elapsedSpeech = if (speakElapsed) {
+                settings.alarmElapsedSpeechTemplate.replace(
+                    "\$e",
+                    formatDurationForSpeech((elapsedMinutes * 60).toInt())
+                )
+            } else null
+            listOfNotNull(primarySpeech, elapsedSpeech).joinToString(". ")
+                .takeIf { it.isNotBlank() }
+                ?.let(::speakText)
         }
     }
 
@@ -208,7 +235,8 @@ class AlarmRingingService : Service() {
             readLabelAloud: Boolean,
             snoozeAllowed: Boolean,
             snoozeMinutes: Int,
-            soundUri: String
+            soundUri: String,
+            isSnooze: Boolean
         ) {
             val intent = Intent(context, AlarmRingingService::class.java).apply {
                 action = ACTION_START_ALARM
@@ -221,6 +249,7 @@ class AlarmRingingService : Service() {
                 putExtra(AlarmRingActivity.EXTRA_READ_LABEL_ALOUD, readLabelAloud)
                 putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
                 putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
+                putExtra(AlarmScheduler.EXTRA_IS_SNOOZE, isSnooze)
                 putExtra(AlarmRingActivity.EXTRA_SOUND_URI, soundUri)
             }
             ContextCompat.startForegroundService(context, intent)

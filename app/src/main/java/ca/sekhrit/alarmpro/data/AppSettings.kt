@@ -32,6 +32,8 @@ data class AppSettings(
     val timerSpeechTemplate: String = DEFAULT_TIMER_SPEECH_TEMPLATE,
     val alarmSpeechWithLabel: String = DEFAULT_ALARM_SPEECH_WITH_LABEL,
     val alarmSpeechWithoutLabel: String = DEFAULT_ALARM_SPEECH_WITHOUT_LABEL,
+    val alarmElapsedSpeechTiming: AlarmElapsedSpeechTiming = AlarmElapsedSpeechTiming.AFTER_EACH_SNOOZE,
+    val alarmElapsedSpeechTemplate: String = DEFAULT_ALARM_ELAPSED_SPEECH_TEMPLATE,
     val speechRate: SpeechRate = SpeechRate.NORMAL,
     val upcomingAlarmLeadMinutes: Int = 60,
     val timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
