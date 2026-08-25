@@ -33,6 +33,7 @@ import java.util.Locale
 class AlarmRingingService : Service() {
     private var mediaPlayer: MediaPlayer? = null
     private var vibrator: Vibrator? = null
+    private var textToSpeech: TextToSpeech? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -200,8 +201,21 @@ class AlarmRingingService : Service() {
 
     private fun speakText(text: String) {
         val settings = SettingsRepository(this).load()
-        ca.sekhrit.alarmpro.AlarmproApplication.tts?.setSpeechRate(settings.speechRate.value)
-        ca.sekhrit.alarmpro.AlarmproApplication.tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "alarmpro_speech")
+        textToSpeech = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                textToSpeech?.apply {
+                    language = Locale.getDefault()
+                    setSpeechRate(settings.speechRate.value)
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    speak(text, TextToSpeech.QUEUE_FLUSH, null, "alarmpro_speech")
+                }
+            }
+        }
     }
 
     private fun stopEffects() {
@@ -210,7 +224,9 @@ class AlarmRingingService : Service() {
         mediaPlayer = null
         vibrator?.cancel()
         vibrator = null
-        ca.sekhrit.alarmpro.AlarmproApplication.tts?.stop()
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
     }

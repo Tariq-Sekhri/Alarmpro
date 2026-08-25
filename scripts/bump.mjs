@@ -62,12 +62,16 @@ function replaceRegex(path, pattern, replacement) {
 const androidBuildGradlePath = join(root, "app", "build.gradle.kts");
 const androidGradle = readFileSync(androidBuildGradlePath, "utf8");
 
-const versionNameMatch = androidGradle.match(/versionName\s*=\s*"([^"]+)"/);
+const versionNameMatch = androidGradle.match(
+  /versionName\s*=\s*(?:ciVersionName\.orNull\s*\?:\s*)?"([^"]+)"/
+);
 if (!versionNameMatch) {
   throw new Error(`${androidBuildGradlePath} does not contain versionName`);
 }
 
-const versionCodeMatch = androidGradle.match(/versionCode\s*=\s*(\d+)/);
+const versionCodeMatch = androidGradle.match(
+  /versionCode\s*=\s*(?:ciVersionCode\.orNull\s*\?:\s*)?(\d+)/
+);
 if (!versionCodeMatch) {
   throw new Error(`${androidBuildGradlePath} does not contain versionCode`);
 }
@@ -79,14 +83,14 @@ const newVersionCode = currentVersionCode + 1;
 
 replaceRegex(
   androidBuildGradlePath,
-  /versionCode\s*=\s*\d+/,
-  `versionCode = ${newVersionCode}`
+  /(versionCode\s*=\s*(?:ciVersionCode\.orNull\s*\?:\s*)?)\d+/,
+  `$1${newVersionCode}`
 );
 
 replaceRegex(
   androidBuildGradlePath,
-  /versionName\s*=\s*"[^"]+"/,
-  `versionName = "${newVersion}"`
+  /(versionName\s*=\s*(?:ciVersionName\.orNull\s*\?:\s*)?)"[^"]+"/,
+  `$1"${newVersion}"`
 );
 
 const updatedFiles = ["app/build.gradle.kts"];
