@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.play.publisher)
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -13,6 +14,24 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+val releaseStoreFile = keystoreProperties.getProperty("storeFile")
+    ?: System.getenv("ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = keystoreProperties.getProperty("storePassword")
+    ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = keystoreProperties.getProperty("keyAlias")
+    ?: System.getenv("ANDROID_KEY_ALIAS")
+val releaseKeyPassword = keystoreProperties.getProperty("keyPassword")
+    ?: System.getenv("ANDROID_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+
+val ciVersionCode = providers.gradleProperty("ciVersionCode").map(String::toInt)
+val ciVersionName = providers.gradleProperty("ciVersionName")
+
 android {
     namespace = "ca.sekhrit.alarmpro"
     compileSdk = 36
@@ -21,8 +40,8 @@ android {
         applicationId = "ca.sekhrit.alarmpro"
         minSdk = 26
         targetSdk = 36
-        versionCode = 29
-        versionName = "0.6.6"
+        versionCode = ciVersionCode.orNull ?: 30
+        versionName = ciVersionName.orNull ?: "0.6.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -33,17 +52,17 @@ android {
     buildTypes {
         signingConfigs {
             create("release") {
-                if (keystorePropertiesFile.exists()) {
-                    storeFile = file(keystoreProperties.getProperty("storeFile"))
-                    storePassword = keystoreProperties.getProperty("storePassword")
-                    keyAlias = keystoreProperties.getProperty("keyAlias")
-                    keyPassword = keystoreProperties.getProperty("keyPassword")
+                if (hasReleaseSigning) {
+                    storeFile = file(requireNotNull(releaseStoreFile))
+                    storePassword = releaseStorePassword
+                    keyAlias = releaseKeyAlias
+                    keyPassword = releaseKeyPassword
                 }
             }
         }
         release {
             isMinifyEnabled = false
-            if (keystorePropertiesFile.exists()) {
+            if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
             proguardFiles(
@@ -68,6 +87,12 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+}
+
+play {
+    useApplicationDefaultCredentials = true
+    track.set("internal")
+    defaultToAppBundles.set(true)
 }
 
 dependencies {

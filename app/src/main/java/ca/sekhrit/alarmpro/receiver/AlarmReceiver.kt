@@ -56,12 +56,31 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     private fun handleAlarm(context: Context, intent: Intent) {
-        val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
-        prepareScheduledAlarm(
-            context,
-            alarmId,
-            intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
-        ) ?: return
+        val pendingResult = goAsync()
+        val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: run {
+            pendingResult.finish()
+            return
+        }
+        val isSnooze = intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
+        val prepared = prepareScheduledAlarm(context, alarmId) ?: run {
+            pendingResult.finish()
+            return
+        }
+        launchRingingActivity(context, alarmId.hashCode(), prepared.ringIntent)
+        AlarmRingingService.startAlarm(
+            context = context,
+            alarmId = alarmId,
+            hour = prepared.hour,
+            minute = prepared.minute,
+            label = prepared.label,
+            vibrate = prepared.vibrate,
+            readLabelAloud = prepared.readLabelAloud,
+            snoozeAllowed = prepared.snoozeAllowed,
+            snoozeMinutes = prepared.snoozeMinutes,
+            soundUri = prepared.soundUri,
+            isSnooze = isSnooze
+        )
+        pendingResult.finish()
     }
 
     private fun handleUpcomingAlarm(context: Context, intent: Intent) {
@@ -99,17 +118,22 @@ class AlarmReceiver : BroadcastReceiver() {
     companion object {
         private val timerCompletionLock = Any()
 
-        /**
-         * Resolves current alarm state only after Android has launched the
-         * trusted exact-alarm activity/receiver. The full-screen notification
-         * is posted before audio-service startup, so SystemUI receives it in
-         * the same alarm-delivery window.
-         */
-        fun prepareScheduledAlarm(
+        private data class PreparedAlarm(
+            val ringIntent: Intent,
+            val hour: Int,
+            val minute: Int,
+            val label: String,
+            val vibrate: Boolean,
+            val readLabelAloud: Boolean,
+            val snoozeAllowed: Boolean,
+            val snoozeMinutes: Int,
+            val soundUri: String
+        )
+
+        private fun prepareScheduledAlarm(
             context: Context,
-            alarmId: String,
-            isSnooze: Boolean
-        ): Intent? {
+            alarmId: String
+        ): PreparedAlarm? {
         val settings = SettingsRepository(context).load()
         val alarms = AlarmRepository(context).loadAlarms()
         val alarm = alarms.find { it.id == alarmId }
@@ -135,31 +159,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
         NotificationHelper.cancelUpcomingNotification(context, alarmId)
 
-        NotificationHelper.showRingingAlarmNotification(
-            context = context,
-            alarmId = alarmId,
-            hour = alarm.time.hour,
-            minute = alarm.time.minute,
-            label = spokenLabel,
-            snoozeAllowed = snoozeAllowed,
-            snoozeMinutes = snoozeMinutes
-        )
-
-        AlarmRingingService.startAlarm(
-            context = context,
-            alarmId = alarmId,
-            hour = alarm.time.hour,
-            minute = alarm.time.minute,
-            label = spokenLabel,
-            vibrate = alarm.vibrate,
-            readLabelAloud = alarm.readLabelAloud,
-            snoozeAllowed = snoozeAllowed,
-            snoozeMinutes = snoozeMinutes,
-            soundUri = soundUri,
-            isSnooze = isSnooze
-        )
-
-        return Intent(context, AlarmRingActivity::class.java).apply {
+        val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_ALARM)
@@ -170,6 +170,17 @@ class AlarmReceiver : BroadcastReceiver() {
             putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
             putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
         }
+        return PreparedAlarm(
+            ringIntent = ringIntent,
+            hour = alarm.time.hour,
+            minute = alarm.time.minute,
+            label = spokenLabel,
+            vibrate = alarm.vibrate,
+            readLabelAloud = alarm.readLabelAloud,
+            snoozeAllowed = snoozeAllowed,
+            snoozeMinutes = snoozeMinutes,
+            soundUri = soundUri
+        )
     }
 
         /**
@@ -191,9 +202,56 @@ class AlarmReceiver : BroadcastReceiver() {
                 NotificationHelper.cancelTimerNotification(context, timerId)
                 repository.removeTimer(timerId)
                 TimerViewModel.instance()?.syncFromStorage()
-                NotificationHelper.showRingingTimerNotification(context, timerId, label, totalSeconds)
+                launchRingingActivity(
+                    context = context,
+                    ringType = AlarmRingActivity.TYPE_TIMER,
+                    timerId = timerId,
+                    label = label,
+                    totalSeconds = totalSeconds
+                )
                 AlarmRingingService.startTimer(context, timerId, label, totalSeconds)
             }
+        }
+
+        private fun launchRingingActivity(
+            context: Context,
+            ringType: String,
+            alarmId: String = "",
+            timerId: String = "",
+            hour: Int = 0,
+            minute: Int = 0,
+            label: String = "",
+            snoozeAllowed: Boolean = true,
+            snoozeMinutes: Int = 10,
+            totalSeconds: Int = 0
+        ) {
+            val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(AlarmRingActivity.EXTRA_RING_TYPE, ringType)
+                putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
+                putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
+                putExtra(AlarmRingActivity.EXTRA_HOUR, hour)
+                putExtra(AlarmRingActivity.EXTRA_MINUTE, minute)
+                putExtra(AlarmRingActivity.EXTRA_LABEL, label)
+                putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
+                putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
+                putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
+            }
+            val requestCode = if (alarmId.isNotBlank()) {
+                alarmId.hashCode()
+            } else {
+                TimerScheduler.notificationIdFor(timerId)
+            }
+            launchRingingActivity(context, requestCode, ringIntent)
+        }
+
+        private fun launchRingingActivity(
+            context: Context,
+            requestCode: Int,
+            intent: Intent
+        ) {
+            NotificationHelper.launchRingingActivity(context, requestCode, intent)
         }
 
         const val ACTION_DISMISS_ALARM = "ca.sekhrit.alarmpro.DISMISS_ALARM"

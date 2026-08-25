@@ -13,6 +13,7 @@ appcompat = "1.7.0"
 material = "1.12.0"
 navigationCompose = "2.8.7"
 reorderable = "2.4.2"
+gradlePlayPublisher = "3.13.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,3 +41,4 @@ reorderable = { group = "sh.calvin.reorderable", name = "reorderable", version.r
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+play-publisher = { id = "com.github.triplet.play", version.ref = "gradlePlayPublisher" }

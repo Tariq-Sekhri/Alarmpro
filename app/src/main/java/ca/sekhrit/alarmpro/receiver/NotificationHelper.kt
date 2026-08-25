@@ -567,6 +567,33 @@ object NotificationHelper {
         notificationManager.cancel(TimerScheduler.notificationIdFor(timerId))
     }
 
+    internal fun launchRingingActivity(
+        context: Context,
+        requestCode: Int,
+        intent: Intent
+    ) {
+        try {
+            context.startActivity(intent)
+            return
+        } catch (_: Exception) {
+        }
+
+        val pendingIntent = ringingActivityPendingIntent(context, requestCode, intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            pendingIntent.send(
+                context,
+                0,
+                null,
+                null,
+                null,
+                null,
+                backgroundActivityOptions(forCreator = false)
+            )
+        } else {
+            pendingIntent.send()
+        }
+    }
+
     private fun ringingActivityPendingIntent(
         context: Context,
         requestCode: Int,

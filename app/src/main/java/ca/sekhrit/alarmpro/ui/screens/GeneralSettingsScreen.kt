@@ -86,6 +86,27 @@ fun GeneralSettingsScreen(
         }
     }
 
+    val exportNotesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(settings.notesText.toByteArray(Charsets.UTF_8))
+                    }
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        Toast.makeText(context, "Notes exported", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        Toast.makeText(context, "Notes export failed", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -240,6 +261,13 @@ fun GeneralSettingsScreen(
                 value = "",
                 onClick = { exportLauncher.launch("alarmpro_backup.json") }
             )
+            if (settings.notesEnabled) {
+                SettingsValueRow(
+                    title = "Export Notes",
+                    value = "",
+                    onClick = { exportNotesLauncher.launch("alarmpro_notes.txt") }
+                )
+            }
             SettingsValueRow(
                 title = "Import Data",
                 value = "",

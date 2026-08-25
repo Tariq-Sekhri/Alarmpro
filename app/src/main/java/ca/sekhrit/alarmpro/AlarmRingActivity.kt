@@ -92,7 +92,8 @@ class AlarmRingActivity : ComponentActivity() {
 
         window.addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON
+                WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
         )
 
         val ringType = intent.getStringExtra(EXTRA_RING_TYPE) ?: TYPE_ALARM
