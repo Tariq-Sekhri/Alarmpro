@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
@@ -70,6 +71,14 @@ class AlarmRingActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Ringing is an interruption, not a screen the user can accidentally
+        // back out of while the alarm continues underneath. Home can still
+        // background the app as required by Android, but Back keeps this
+        // full-screen alert in place until Snooze or Dismiss is chosen.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = Unit
+        })
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)

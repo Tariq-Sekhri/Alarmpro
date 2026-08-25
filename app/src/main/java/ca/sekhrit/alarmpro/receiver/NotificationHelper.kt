@@ -121,6 +121,10 @@ object NotificationHelper {
             .setGroup(isolatedNotificationGroup("alarm", alarmId.hashCode()))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
+            // A ringing alarm must be posted immediately: Android can defer a
+            // normal foreground-service notification, which also delays its
+            // full-screen intent behind whatever app is currently visible.
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setFullScreenIntent(ringPendingIntent, true)
             .setContentIntent(ringPendingIntent)
             .setSilent(silent)
@@ -260,6 +264,9 @@ object NotificationHelper {
             .setGroup(isolatedNotificationGroup("timer", notificationId))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
+            // Timers share the alarm takeover contract, including immediate
+            // delivery of the notification that owns the full-screen intent.
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setFullScreenIntent(openPendingIntent, true)
             .setContentIntent(openPendingIntent)
             .setSilent(silent)
