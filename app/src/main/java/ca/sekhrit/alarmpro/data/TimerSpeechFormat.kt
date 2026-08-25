@@ -69,8 +69,8 @@ fun formatTimerSpeechTemplate(
     return expanded.takeIf { it.isNotBlank() }
 }
 
-const val DEFAULT_TIMER_SPEECH_TEMPLATE = "Timer finished: \$t. \$l."
-const val DEFAULT_ELAPSED_SPEECH_TEMPLATE = "Your timer has been active for \$e."
+const val DEFAULT_TIMER_SPEECH_TEMPLATE = "\$l finished. \$t."
+const val DEFAULT_ELAPSED_SPEECH_TEMPLATE = "This alarm or timer has been active for \$e."
 
 fun formatDurationForSpeech(totalSeconds: Int): String {
     val hours = totalSeconds / 3600

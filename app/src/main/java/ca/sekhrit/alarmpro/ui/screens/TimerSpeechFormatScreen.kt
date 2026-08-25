@@ -62,7 +62,7 @@ fun TimerSpeechFormatScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle("Timer Speech Format") },
+                title = { ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle("Alarm & Timer Speech") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -113,7 +113,7 @@ fun TimerSpeechFormatScreen(
                 .padding(horizontal = 16.dp)
         ) {
             Text(
-                text = "Choose what Alarmpro says when a timer finishes.",
+                text = "Choose what Alarmpro says when an alarm or timer finishes.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp)
@@ -157,7 +157,7 @@ fun TimerSpeechFormatScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TokenDescription(token = "\$t", description = "timer duration (example: 10 minutes)")
-                TokenDescription(token = "\$l", description = "timer label")
+                TokenDescription(token = "\$l", description = "alarm or timer label")
                 TokenDescription(token = "\$h", description = "total hours")
                 TokenDescription(token = "\$m", description = "remaining minutes")
                 TokenDescription(token = "\$s", description = "remaining seconds")
@@ -165,7 +165,7 @@ fun TimerSpeechFormatScreen(
                     value = template,
                     onValueChange = { template = it },
                     label = { Text("Speech text") },
-                    placeholder = { Text("Timer finished: \$t. \$l.") },
+                    placeholder = { Text("\$l finished. \$t.") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp)
@@ -201,7 +201,7 @@ fun TimerSpeechFormatScreen(
                     )
                 }
                 Text(
-                    text = "Use \$e for elapsed time (example: 10 minutes).",
+                    text = "Use \$e for elapsed time (example: 10 minutes). Example: “This alarm or timer has been active for \$e.”",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
@@ -227,10 +227,10 @@ private fun SpeechFormatChoice(
     onClick: () -> Unit
 ) {
     val description = when (option) {
-        TimerSpeechFormat.OFF -> "Do not speak when a timer finishes"
-        TimerSpeechFormat.TIME -> "Speak the timer duration"
-        TimerSpeechFormat.LABEL -> "Speak only the timer label"
-        TimerSpeechFormat.TIME_AND_LABEL -> "Speak the duration, then the label"
+        TimerSpeechFormat.OFF -> "Do not speak when an alarm or timer finishes"
+        TimerSpeechFormat.TIME -> "Speak the time or timer duration"
+        TimerSpeechFormat.LABEL -> "Speak only the alarm or timer label"
+        TimerSpeechFormat.TIME_AND_LABEL -> "Speak the time/duration, then the label"
         TimerSpeechFormat.CUSTOM -> "Write exactly what should be spoken"
     }
     Row(
@@ -278,6 +278,20 @@ private fun ElapsedTimingChoice(
         verticalAlignment = Alignment.CenterVertically
     ) {
         RadioButton(selected = selected, onClick = onClick)
-        Text(timing.label, modifier = Modifier.padding(start = 8.dp))
+        Column(modifier = Modifier.padding(start = 8.dp)) {
+            Text(timing.label)
+            Text(
+                text = when (timing) {
+                    ElapsedSpeechTiming.AFTER_EACH_SNOOZE ->
+                        "Only after you snooze and the alarm rings again. Example: after one snooze, “This alarm has been active for 10 minutes.”"
+                    ElapsedSpeechTiming.ALWAYS ->
+                        "Every time it rings, after the primary speech. Example: “Pasta finished. This timer has been active for 5 minutes.”"
+                    ElapsedSpeechTiming.NEVER ->
+                        "Never speak elapsed time; only the primary speech is used."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
