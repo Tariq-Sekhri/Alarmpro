@@ -1,6 +1,7 @@
 package ca.sekhrit.alarmpro.receiver
 
 import android.Manifest
+import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -31,10 +32,12 @@ import java.time.ZoneId
 object NotificationHelper {
     // Ringing is handled by AlarmRingActivity so the selected sound is the only sound.
     // Version the channel to replace older installs whose channel still had a default sound.
-    private const val ALARM_CHANNEL = "alarm_channel_v2"
+    // v3 restores high-importance delivery for existing installs whose older
+    // channel state can no longer be raised programmatically.
+    private const val ALARM_CHANNEL = "alarm_channel_v3"
     private const val UPCOMING_CHANNEL = "upcoming_alarm_channel"
-    // v3 is a fresh channel so existing installs receive the DND-bypass setting.
-    private const val TIMER_CHANNEL = "timer_channel_v3"
+    // v4 also restores full-screen eligibility on upgraded physical devices.
+    private const val TIMER_CHANNEL = "timer_channel_v4"
     private const val ACTIVE_TIMER_CHANNEL = "active_timer_channel_v1"
     private const val STOPWATCH_MARK_NOTIFICATION_ID = 9002
     private const val STOPWATCH_NOTIFICATION_ID = 9003
@@ -76,11 +79,10 @@ object NotificationHelper {
             putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
             putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
         }
-        val ringPendingIntent = PendingIntent.getActivity(
-            context,
-            alarmId.hashCode(),
-            ringIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val ringPendingIntent = ringingActivityPendingIntent(
+            context = context,
+            requestCode = alarmId.hashCode(),
+            intent = ringIntent
         )
 
         val dismissIntent = Intent(context, AlarmReceiver::class.java).apply {
@@ -235,11 +237,10 @@ object NotificationHelper {
             putExtra(AlarmRingActivity.EXTRA_LABEL, label)
             putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
         }
-        val openPendingIntent = PendingIntent.getActivity(
-            context,
-            notificationId,
-            openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val openPendingIntent = ringingActivityPendingIntent(
+            context = context,
+            requestCode = notificationId,
+            intent = openIntent
         )
 
         val dismissIntent = Intent(context, AlarmReceiver::class.java).apply {
@@ -528,6 +529,66 @@ object NotificationHelper {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(TimerScheduler.notificationIdFor(timerId))
+    }
+
+    /**
+     * Android 15+ no longer grants a PendingIntent creator's background
+     * activity-launch privilege by default. A user-scheduled ringing alarm is
+     * the intentional background-launch case, so opt this one trusted activity
+     * intent in explicitly. Without this, SystemUI can post the notification
+     * while refusing to bring AlarmRingActivity to the foreground.
+     */
+    internal fun launchRingingActivity(
+        context: Context,
+        requestCode: Int,
+        intent: Intent
+    ) {
+        val pendingIntent = ringingActivityPendingIntent(context, requestCode, intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            pendingIntent.send(
+                context,
+                0,
+                null,
+                null,
+                null,
+                null,
+                backgroundActivityOptions(forCreator = false)
+            )
+        } else {
+            pendingIntent.send()
+        }
+    }
+
+    private fun ringingActivityPendingIntent(
+        context: Context,
+        requestCode: Int,
+        intent: Intent
+    ): PendingIntent {
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            backgroundActivityOptions(forCreator = true)
+        )
+    }
+
+    private fun backgroundActivityOptions(forCreator: Boolean): android.os.Bundle? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return null
+
+        val launchMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
+        } else {
+            @Suppress("DEPRECATION")
+            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+        }
+        return ActivityOptions.makeBasic().apply {
+            if (forCreator) {
+                pendingIntentCreatorBackgroundActivityStartMode = launchMode
+            } else {
+                pendingIntentBackgroundActivityStartMode = launchMode
+            }
+        }.toBundle()
     }
 
     private fun notificationControls(

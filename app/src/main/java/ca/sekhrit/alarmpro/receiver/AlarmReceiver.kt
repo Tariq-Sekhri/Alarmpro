@@ -198,20 +198,28 @@ class AlarmReceiver : BroadcastReceiver() {
             totalSeconds: Int = 0
         ) {
             runCatching {
-                context.startActivity(
-                    Intent(context, AlarmRingActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP
-                        putExtra(AlarmRingActivity.EXTRA_RING_TYPE, ringType)
-                        putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
-                        putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
-                        putExtra(AlarmRingActivity.EXTRA_HOUR, hour)
-                        putExtra(AlarmRingActivity.EXTRA_MINUTE, minute)
-                        putExtra(AlarmRingActivity.EXTRA_LABEL, label)
-                        putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
-                        putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
-                        putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
-                    }
+                val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(AlarmRingActivity.EXTRA_RING_TYPE, ringType)
+                    putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
+                    putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
+                    putExtra(AlarmRingActivity.EXTRA_HOUR, hour)
+                    putExtra(AlarmRingActivity.EXTRA_MINUTE, minute)
+                    putExtra(AlarmRingActivity.EXTRA_LABEL, label)
+                    putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
+                    putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
+                    putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
+                }
+                val requestCode = if (alarmId.isNotBlank()) {
+                    alarmId.hashCode()
+                } else {
+                    TimerScheduler.notificationIdFor(timerId)
+                }
+                NotificationHelper.launchRingingActivity(
+                    context = context,
+                    requestCode = requestCode,
+                    intent = ringIntent
                 )
             }.onFailure { error ->
                 // Keep this visible in logcat: the foreground-service
