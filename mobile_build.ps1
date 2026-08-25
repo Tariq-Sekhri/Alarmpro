@@ -45,4 +45,10 @@ if (!$aabPath) {
 }
 
 $aab = Get-Item -LiteralPath $aabPath
-Write-Host "Signed release AAB ready: $($aab.FullName) ($([math]::Round($aab.Length / 1MB, 2)) MB)"
+$releaseDirectory = Join-Path $projectRoot 'releases\release'
+New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
+$publishedAabPath = Join-Path $releaseDirectory 'app-release.aab'
+Copy-Item -LiteralPath $aab.FullName -Destination $publishedAabPath -Force
+
+$publishedAab = Get-Item -LiteralPath $publishedAabPath
+Write-Host "Signed release AAB ready: $($publishedAab.FullName) ($([math]::Round($publishedAab.Length / 1MB, 2)) MB)"
