@@ -62,6 +62,7 @@ fun DurationPickerDialog(
     showSeconds: Boolean = true,
     initialLabel: String = "",
     onDismiss: () -> Unit,
+    onResetToDefault: (() -> Unit)? = null,
     onConfirm: (totalSeconds: Int, label: String) -> Unit
 ) {
     var hours by remember(initialTotalSeconds) { mutableIntStateOf(initialTotalSeconds / 3600) }
@@ -190,6 +191,13 @@ fun DurationPickerDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val buttonColors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+                    if (onResetToDefault != null) {
+                        TextButton(onClick = onResetToDefault, colors = buttonColors) {
+                            Text("RESET TO DEFAULT")
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(onClick = onDismiss, colors = buttonColors) { Text("CANCEL") }
                     TextButton(

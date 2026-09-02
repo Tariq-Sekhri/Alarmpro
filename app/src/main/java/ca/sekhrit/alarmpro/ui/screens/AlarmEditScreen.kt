@@ -12,13 +12,14 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -30,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -105,8 +107,6 @@ fun AlarmEditScreen(
     var customSoundUri by remember(existing?.id) { mutableStateOf(existing?.soundUri) }
     var showCustomSnoozeDialog by remember { mutableStateOf(false) }
 
-    val snoozeLengthOptions = listOf(5, 10, 15, 20, 30, 45, 60)
-    val isCustomSnooze = !useDefaultSnoozeLength && customSnoozeMinutes !in snoozeLengthOptions
     val anchorEpochDay = existing?.repeat?.anchorEpochDay ?: existing?.createdEpochDay ?: LocalDate.now().toEpochDay()
     val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
     val dayValues = listOf(7, 1, 2, 3, 4, 5, 6)
@@ -119,6 +119,13 @@ fun AlarmEditScreen(
         RepeatType.INTERVAL_MONTHS to "Every N months",
         RepeatType.YEARLY to "Yearly"
     )
+
+    fun selectRepeatType(type: RepeatType) {
+        repeatType = type
+        if ((type == RepeatType.WEEKLY || type == RepeatType.INTERVAL_WEEKS) && selectedDays.isEmpty()) {
+            selectedDays = setOf(LocalDate.now().dayOfWeek.value)
+        }
+    }
 
     val previewSchedule = RepeatSchedule(
         type = repeatType,
@@ -200,6 +207,10 @@ fun AlarmEditScreen(
             showLabel = false,
             showSeconds = false,
             onDismiss = { showCustomSnoozeDialog = false },
+            onResetToDefault = {
+                useDefaultSnoozeLength = true
+                showCustomSnoozeDialog = false
+            },
             onConfirm = { totalSeconds, _ ->
                 useDefaultSnoozeLength = false
                 customSnoozeMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)
@@ -230,8 +241,8 @@ fun AlarmEditScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
-                        Text("Active", style = MaterialTheme.typography.bodyMedium)
-                        Checkbox(
+                        Text(if (isActive) "On" else "Off", style = MaterialTheme.typography.bodyMedium)
+                        Switch(
                             checked = isActive,
                             onCheckedChange = { isActive = it }
                         )
@@ -240,22 +251,24 @@ fun AlarmEditScreen(
             )
         },
         bottomBar = {
-            Row(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedButton(
                     onClick = onBack,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(4.dp)
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text("CANCEL")
+                    Text("Cancel")
                 }
-                OutlinedButton(
+                Button(
                     onClick = { saveAlarm() },
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(4.dp)
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text("SAVE")
+                    Text(if (existing == null) "Create alarm" else "Save changes")
                 }
             }
         }
@@ -302,7 +315,7 @@ fun AlarmEditScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Alarm label (spoken reminder)", style = MaterialTheme.typography.bodyLarge)
+                Text("Label", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
@@ -319,8 +332,24 @@ fun AlarmEditScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Speak time & label")
+                        Text(
+                            "Speaks when the alarm rings",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = readLabelAloud, onCheckedChange = { readLabelAloud = it })
+                }
 
-                Text("Alarm sound", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
+                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+                Text("Sound", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
                 AlarmSoundPickerRow(
                     soundName = AlarmSoundUtils.getTitle(
                         context,
@@ -333,8 +362,17 @@ fun AlarmEditScreen(
                         customSoundUri = AlarmSoundUtils.uriToStorage(uri)
                     }
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Vibrate during alarm")
+                    Switch(checked = vibrate, onCheckedChange = { vibrate = it })
+                }
 
-                Text("Alarm group", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
+                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+                Text("Group", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = !createNewGroup && selectedGroupId == null,
@@ -373,54 +411,18 @@ fun AlarmEditScreen(
                     )
                 }
 
-                Text("Alarm type", style = MaterialTheme.typography.bodyLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    repeatTypes.take(2).forEach { (type, name) ->
-                        FilterChip(
-                            selected = repeatType == type || (type == RepeatType.WEEKLY && repeatType == RepeatType.DAILY),
-                            onClick = { repeatType = type },
-                            label = { Text(name) }
-                        )
-                    }
-                }
-
-                if (repeatType == RepeatType.WEEKLY || repeatType == RepeatType.DAILY || repeatType == RepeatType.INTERVAL_WEEKS) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        dayLetters.forEachIndexed { index, letter ->
-                            val day = dayValues[index]
-                            val selected = day in selectedDays || (repeatType == RepeatType.DAILY)
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(if (selected) ElectricCyan.copy(alpha = 0.25f) else CardSurface)
-                                    .border(
-                                        1.dp,
-                                        if (selected) ElectricCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                        CircleShape
-                                    )
-                                    .clickable {
-                                        if (repeatType == RepeatType.DAILY) return@clickable
-                                        selectedDays = if (day in selectedDays) selectedDays - day else selectedDays + day
-                                        if (repeatType == RepeatType.ONCE) repeatType = RepeatType.WEEKLY
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(letter)
-                            }
-                        }
-                    }
-                }
-
-                Text("Repeat", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
+                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+                Text("Schedule", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
+                Text(
+                    "Choose how often this alarm should repeat.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     repeatTypes.forEach { (type, name) ->
                         FilterChip(
                             selected = repeatType == type,
-                            onClick = { repeatType = type },
+                            onClick = { selectRepeatType(type) },
                             label = { Text(name) }
                         )
                     }
@@ -431,31 +433,78 @@ fun AlarmEditScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                if (repeatType == RepeatType.WEEKLY || repeatType == RepeatType.INTERVAL_WEEKS) {
+                    Text("Days", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        dayLetters.forEachIndexed { index, letter ->
+                            val day = dayValues[index]
+                            val selected = day in selectedDays
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(if (selected) ElectricCyan.copy(alpha = 0.25f) else CardSurface)
+                                    .border(
+                                        1.dp,
+                                        if (selected) ElectricCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                        CircleShape
+                                    )
+                                    .clickable {
+                                        if (selected && selectedDays.size == 1) return@clickable
+                                        selectedDays = if (selected) selectedDays - day else selectedDays + day
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(letter)
+                            }
+                        }
+                    }
+                }
+
                 if (repeatType == RepeatType.INTERVAL_WEEKS) {
+                    Text("Every", style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(2, 3, 4, 6, 8).forEach { weeks ->
                             FilterChip(
                                 selected = weekInterval == weeks,
                                 onClick = { weekInterval = weeks },
-                                label = { Text("${weeks}w") }
+                                label = { Text("$weeks weeks") }
                             )
                         }
                     }
                 }
 
                 if (repeatType == RepeatType.MONTHLY || repeatType == RepeatType.INTERVAL_MONTHS) {
+                    Text("Day of month", style = MaterialTheme.typography.labelLarge)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(onClick = { dayOfMonth = ((dayOfMonth - 2 + 31) % 31) + 1 }) { Text("-") }
-                        Text("Day $dayOfMonth", style = MaterialTheme.typography.titleMedium)
+                        Text("$dayOfMonth", style = MaterialTheme.typography.titleMedium)
                         OutlinedButton(onClick = { dayOfMonth = (dayOfMonth % 31) + 1 }) { Text("+") }
                     }
                 }
 
-                Text("Snooze", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
+                if (repeatType == RepeatType.INTERVAL_MONTHS) {
+                    Text("Every", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(2, 3, 4, 6, 12).forEach { months ->
+                            FilterChip(
+                                selected = monthInterval == months,
+                                onClick = { monthInterval = months },
+                                label = { Text("$months months") }
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+                Text("Snooze", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -463,84 +512,26 @@ fun AlarmEditScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Allow snooze")
-                        Text(
-                            "Snooze duration: ${
-                                if (useDefaultSnoozeLength) {
-                                    TimeUtils.formatSnoozeDuration(settings.defaultSnoozeMinutes)
-                                } else {
-                                    TimeUtils.formatSnoozeDuration(customSnoozeMinutes)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Snooze duration: ${
+                                    if (useDefaultSnoozeLength) {
+                                        TimeUtils.formatSnoozeDuration(settings.defaultSnoozeMinutes)
+                                    } else {
+                                        TimeUtils.formatSnoozeDuration(customSnoozeMinutes)
+                                    }
+                                }",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (snoozeEnabled) {
+                                TextButton(onClick = { showCustomSnoozeDialog = true }) {
+                                    Text("Change")
                                 }
-                            }",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            }
+                        }
                     }
                     Switch(checked = snoozeEnabled, onCheckedChange = { snoozeEnabled = it })
-                }
-
-                if (snoozeEnabled) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = useDefaultSnoozeLength,
-                            onClick = { useDefaultSnoozeLength = true },
-                            label = { Text("Default (${settings.defaultSnoozeMinutes}m)") }
-                        )
-                        snoozeLengthOptions.forEach { minutes ->
-                            FilterChip(
-                                selected = !useDefaultSnoozeLength && !isCustomSnooze && customSnoozeMinutes == minutes,
-                                onClick = {
-                                    useDefaultSnoozeLength = false
-                                    customSnoozeMinutes = minutes
-                                },
-                                label = { Text("${minutes}m") }
-                            )
-                        }
-                        FilterChip(
-                            selected = isCustomSnooze,
-                            onClick = { showCustomSnoozeDialog = true },
-                            label = {
-                                Text(
-                                    if (isCustomSnooze) {
-                                        TimeUtils.formatSnoozeDuration(customSnoozeMinutes)
-                                    } else {
-                                        "Custom"
-                                    }
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Text("Dismiss", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
-                Text(
-                    "Dismiss method: Press on-screen button",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text("Advanced", style = MaterialTheme.typography.bodyLarge, color = WarmAmber)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Vibrate during alarm")
-                    Switch(checked = vibrate, onCheckedChange = { vibrate = it })
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Speak time & label")
-                        Text(
-                            "Speaks when the alarm rings",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(checked = readLabelAloud, onCheckedChange = { readLabelAloud = it })
                 }
             }
         }
