@@ -13,7 +13,6 @@ import ca.sekhrit.alarmpro.MainActivity
 import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.data.TimerPresetRepository
 import ca.sekhrit.alarmpro.domain.AlarmActions
-import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.util.AlarmGrouping
 import ca.sekhrit.alarmpro.util.AlarmSoundUtils
 import ca.sekhrit.alarmpro.util.TimeUtils
@@ -98,20 +97,19 @@ class AlarmReceiver : BroadcastReceiver() {
             return
         }
         val settings = SettingsRepository(context).load()
-        val leadMinutes = settings.upcomingAlarmLeadMinutes
-        if (leadMinutes <= 0) {
+        if (settings.upcomingAlarmLeadMinutes <= 0) {
             NotificationHelper.cancelUpcomingNotification(context, alarmId)
             return
         }
-        val timeText = TimeUtils.formatTime(alarm.time, settings.use24HourFormat)
-        val leadText = upcomingAlarmLeadLabel(leadMinutes)
+        val timeText = TimeUtils.formatNotificationTime(alarm.time, settings.use24HourFormat)
+        val remainingMillis = TimeUtils.nextTriggerMillis(alarm) - System.currentTimeMillis()
 
         NotificationHelper.showUpcomingAlarmNotification(
             context = context,
             alarmId = alarmId,
             label = alarm.label,
             timeText = timeText,
-            leadText = leadText,
+            remainingMillis = remainingMillis,
             isRepeating = alarm.repeat.type != ca.sekhrit.alarmpro.data.RepeatType.ONCE
         )
     }

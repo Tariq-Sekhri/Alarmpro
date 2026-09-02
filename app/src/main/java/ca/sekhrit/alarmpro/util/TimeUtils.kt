@@ -24,6 +24,11 @@ object TimeUtils {
         return time.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
     }
 
+    fun formatNotificationTime(time: LocalTime, use24Hour: Boolean): String {
+        val parts = formatAlarmTimeParts(time, use24Hour)
+        return parts.time + parts.period.orEmpty()
+    }
+
     fun formatAlarmTimeParts(time: LocalTime, use24Hour: Boolean): AlarmTimeParts {
         if (use24Hour) {
             return AlarmTimeParts(

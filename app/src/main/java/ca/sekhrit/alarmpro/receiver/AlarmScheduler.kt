@@ -7,7 +7,6 @@ import android.content.Intent
 import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.SettingsRepository
-import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.util.RepeatCalculator
 import ca.sekhrit.alarmpro.util.TimeUtils
 
@@ -19,6 +18,11 @@ class AlarmScheduler(private val context: Context) {
             cancel(alarm)
             return
         }
+
+        // A reschedule can move the next occurrence past a notification that is
+        // already visible (for example, after skipping one alarm or a group).
+        // Clear that stale warning before scheduling the new occurrence.
+        cancelUpcoming(alarm)
 
         val settings = SettingsRepository(context).load()
         val triggerAt = RepeatCalculator.nextTriggerMillis(alarm)
@@ -84,8 +88,8 @@ class AlarmScheduler(private val context: Context) {
                 context = context,
                 alarmId = alarm.id,
                 label = alarm.label,
-                timeText = TimeUtils.formatTime(alarm.time, settings.use24HourFormat),
-                leadText = upcomingAlarmLeadLabel(leadMinutes),
+                timeText = TimeUtils.formatNotificationTime(alarm.time, settings.use24HourFormat),
+                remainingMillis = triggerAt - System.currentTimeMillis(),
                 isRepeating = alarm.repeat.type != RepeatType.ONCE
             )
             return

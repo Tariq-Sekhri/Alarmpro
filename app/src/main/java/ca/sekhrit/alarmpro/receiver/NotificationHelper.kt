@@ -166,7 +166,7 @@ object NotificationHelper {
         alarmId: String,
         label: String,
         timeText: String,
-        leadText: String,
+        remainingMillis: Long,
         isRepeating: Boolean
     ) {
         if (!canPostNotifications(context)) return
@@ -175,12 +175,8 @@ object NotificationHelper {
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureUpcomingChannel(notificationManager)
 
-        val title = if (label.isBlank()) "Upcoming alarm" else label
-        val content = if (leadText == "Off") {
-            "Alarm at $timeText"
-        } else {
-            "Alarm at $timeText ($leadText)"
-        }
+        val title = "Alarm - $timeText - ${formatUpcomingRemaining(remainingMillis)}"
+        val content = label.takeIf { it.isNotBlank() }
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -238,6 +234,18 @@ object NotificationHelper {
 
     private fun upcomingNotificationId(alarmId: String): Int {
         return alarmId.hashCode() + 50_000
+    }
+
+    private fun formatUpcomingRemaining(remainingMillis: Long): String {
+        val remainingMinutes = remainingMillis.coerceAtLeast(0) / 60_000L
+        val hours = remainingMinutes / 60
+        val minutes = remainingMinutes % 60
+        return when {
+            remainingMinutes < 1 -> "less than 1 min"
+            hours == 0L -> "$minutes min"
+            minutes == 0L -> "${hours}h"
+            else -> "${hours}h $minutes min"
+        }
     }
 
     fun buildTimerNotification(
