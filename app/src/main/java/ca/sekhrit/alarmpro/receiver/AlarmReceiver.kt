@@ -9,6 +9,7 @@ import ca.sekhrit.alarmpro.data.AlarmRepository
 import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.data.isSnoozeAllowed
 import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
+import ca.sekhrit.alarmpro.MainActivity
 import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.data.TimerPresetRepository
 import ca.sekhrit.alarmpro.domain.AlarmActions
@@ -213,6 +214,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 NotificationHelper.cancelTimerNotification(context, timerId)
                 repository.removeTimer(timerId)
                 TimerViewModel.instance()?.syncFromStorage()
+                MainActivity.dismissPipIfActive()
                 launchRingingActivity(
                     context = context,
                     ringType = AlarmRingActivity.TYPE_TIMER,

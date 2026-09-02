@@ -2,6 +2,7 @@ package ca.sekhrit.alarmpro
 
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
+import android.app.PictureInPictureUiState
 import android.app.RemoteAction
 import android.os.Bundle
 import android.os.Build
@@ -14,17 +15,22 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +38,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -89,8 +96,10 @@ class MainActivity : ComponentActivity() {
     private val intentFlow = MutableSharedFlow<Intent>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     private var pipContent by mutableStateOf<PipContent?>(null)
     private var isInPipMode by mutableStateOf(false)
+    private var isEnteringPip by mutableStateOf(false)
     private var pipStopwatchStateJob: kotlinx.coroutines.Job? = null
     private var observedPipStopwatchId: String? = null
+    private var blockPipFullscreenPending = false
     private val stopwatchStateRepository by lazy { StopwatchStateRepository(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -104,17 +113,36 @@ class MainActivity : ComponentActivity() {
 
         setStopwatchPipNotifier(::notifyStopwatchPipChanged)
         setTimerPipNotifier(::notifyTimerPipChanged)
+        setPipDismissNotifier(::dismissPip)
 
         setContent {
             AlarmProTheme {
-                MainScreen(
-                    alarmViewModel = alarmViewModel,
-                    timerViewModel = timerViewModel,
-                    intentFlow = intentFlow,
+                val pipActive = isInPipMode || isEnteringPip
+                PipTimerSync(
                     isInPipMode = isInPipMode,
                     pipContent = pipContent,
+                    timerViewModel = timerViewModel,
                     onPipContentChanged = ::updatePipContent
                 )
+                if (pipActive) {
+                    if (pipContent != null) {
+                        PipDisplay(content = pipContent!!)
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF101824))
+                        )
+                    }
+                } else {
+                    MainScreen(
+                        alarmViewModel = alarmViewModel,
+                        timerViewModel = timerViewModel,
+                        intentFlow = intentFlow,
+                        isInPipMode = isInPipMode,
+                        onPipContentChanged = ::updatePipContent
+                    )
+                }
             }
         }
     }
@@ -122,6 +150,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         setStopwatchPipNotifier(null)
         setTimerPipNotifier(null)
+        setPipDismissNotifier(null)
         super.onDestroy()
     }
 
@@ -132,19 +161,30 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        syncPipMode()
         alarmViewModel.refreshFromStorage()
+        restorePipAfterBlockedFullscreen()
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && pipContent != null) {
-            enterPictureInPictureMode(buildPipParams(requireNotNull(pipContent)))
+        val content = pipContent?.takeIf(::isPipEnterEligible) ?: return
+        isEnteringPip = true
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            enterPictureInPictureMode(buildPipParams(content))
+        }
+    }
+
+    override fun onPictureInPictureUiStateChanged(state: PictureInPictureUiState) {
+        super.onPictureInPictureUiStateChanged(state)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && state.isTransitioningToPip) {
+            isEnteringPip = true
         }
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode)
-        syncPipMode()
+        handlePipModeChanged(isInPictureInPictureMode)
     }
 
     @Suppress("DEPRECATION")
@@ -153,18 +193,64 @@ class MainActivity : ComponentActivity() {
         newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        handlePipModeChanged(isInPictureInPictureMode)
+    }
+
+    private fun handlePipModeChanged(isInPictureInPictureMode: Boolean) {
         syncPipMode()
+        if (isInPictureInPictureMode) {
+            blockPipFullscreenPending = false
+            return
+        }
+        if (pipContent == null) return
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        blockPipFullscreenPending = true
+    }
+
+    private fun restorePipAfterBlockedFullscreen() {
+        if (!blockPipFullscreenPending || pipContent == null || isInPictureInPictureMode || isFinishing) {
+            blockPipFullscreenPending = false
+            return
+        }
+        val content = pipContent?.takeIf(::canDisplayInPip) ?: run {
+            blockPipFullscreenPending = false
+            dismissPip()
+            return
+        }
+        blockPipFullscreenPending = false
+        isEnteringPip = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            enterPictureInPictureMode(buildPipParams(content))
+        }
     }
 
     private fun updatePipContent(content: PipContent?, refreshObserver: Boolean = true) {
-        if (content == null && (isInPipMode || isInPictureInPictureMode)) return
-        if (pipContent == content) return
-        pipContent = content
+        val pipActive = isInPipMode || isEnteringPip || isInPictureInPictureMode
+        val resolved = when {
+            content == null -> null
+            pipActive -> content.takeIf(::canDisplayInPip)
+            else -> content.takeIf(::isPipEnterEligible)
+        }
+        if (resolved == null && pipActive) {
+            dismissPip()
+            return
+        }
+        if (pipContent == resolved) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                setPictureInPictureParams(
+                    if (resolved != null) buildPipParams(resolved) else clearedPipParams()
+                )
+            }
+            return
+        }
+        pipContent = resolved
         if (refreshObserver) {
-            observePipStopwatchState(content)
+            observePipStopwatchState(resolved)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            setPictureInPictureParams(content?.let(::buildPipParams) ?: PictureInPictureParams.Builder().build())
+            setPictureInPictureParams(
+                if (resolved != null) buildPipParams(resolved) else clearedPipParams()
+            )
         }
     }
 
@@ -236,6 +322,34 @@ class MainActivity : ComponentActivity() {
 
     private fun syncPipMode() {
         isInPipMode = isInPictureInPictureMode
+        if (isInPictureInPictureMode) {
+            isEnteringPip = false
+        }
+    }
+
+    private fun dismissPip() {
+        pipStopwatchStateJob?.cancel()
+        pipStopwatchStateJob = null
+        observedPipStopwatchId = null
+        pipContent = null
+        observePipStopwatchState(null)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            setPictureInPictureParams(clearedPipParams())
+        }
+        if (isInPictureInPictureMode) {
+            moveTaskToBack(true)
+        }
+    }
+
+    private fun clearedPipParams(): PictureInPictureParams {
+        return PictureInPictureParams.Builder().apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                setAutoEnterEnabled(false)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                setExpandedAspectRatio(null)
+            }
+        }.build()
     }
 
     private fun buildPipParams(content: PipContent): PictureInPictureParams {
@@ -244,7 +358,11 @@ class MainActivity : ComponentActivity() {
             .setActions(pipActions(content))
             .apply {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    setAutoEnterEnabled(true)
+                    setAutoEnterEnabled(isPipEnterEligible(content))
+                    setSeamlessResizeEnabled(false)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    setExpandedAspectRatio(null)
                 }
             }
             .build()
@@ -257,7 +375,11 @@ class MainActivity : ComponentActivity() {
                 if (content.isRunning) "Pause" else "Resume",
                 timerActionIntent(content.timerId, if (content.isRunning) TimerActionReceiver.ACTION_PAUSE else TimerActionReceiver.ACTION_RESUME, 1)
             ),
-            remoteAction(android.R.drawable.ic_menu_close_clear_cancel, "Cancel", timerActionIntent(content.timerId, TimerActionReceiver.ACTION_CLOSE, 2))
+            remoteAction(
+                R.drawable.ic_pip_stop,
+                "Stop",
+                timerActionIntent(content.timerId, TimerActionReceiver.ACTION_CLOSE, 2)
+            )
         )
         is PipContent.Stopwatch -> listOf(
             remoteAction(
@@ -266,7 +388,11 @@ class MainActivity : ComponentActivity() {
                 stopwatchActionIntent(content.stopwatchId, StopwatchActionReceiver.ACTION_TOGGLE, 1)
             ),
             remoteAction(android.R.drawable.ic_input_add, "Lap", stopwatchActionIntent(content.stopwatchId, StopwatchActionReceiver.ACTION_ADD_LAP, 2)),
-            remoteAction(android.R.drawable.ic_menu_close_clear_cancel, "Reset", stopwatchActionIntent(content.stopwatchId, StopwatchActionReceiver.ACTION_RESET, 3))
+            remoteAction(
+                R.drawable.ic_pip_stop,
+                "Stop",
+                stopwatchActionIntent(content.stopwatchId, StopwatchActionReceiver.ACTION_RESET, 3)
+            )
         )
     }
 
@@ -294,6 +420,7 @@ class MainActivity : ComponentActivity() {
 
         private var stopwatchPipNotifier: ((String, StopwatchRuntimeState?) -> Unit)? = null
         private var timerPipNotifier: ((String) -> Unit)? = null
+        private var pipDismissNotifier: (() -> Unit)? = null
 
         internal fun setStopwatchPipNotifier(notifier: ((String, StopwatchRuntimeState?) -> Unit)?) {
             stopwatchPipNotifier = notifier
@@ -303,12 +430,20 @@ class MainActivity : ComponentActivity() {
             timerPipNotifier = notifier
         }
 
+        internal fun setPipDismissNotifier(notifier: (() -> Unit)?) {
+            pipDismissNotifier = notifier
+        }
+
         internal fun notifyStopwatchPipChanged(stopwatchId: String, runtime: StopwatchRuntimeState? = null) {
             stopwatchPipNotifier?.invoke(stopwatchId, runtime)
         }
 
         internal fun notifyTimerPipChanged(timerId: String) {
             timerPipNotifier?.invoke(timerId)
+        }
+
+        internal fun dismissPipIfActive() {
+            pipDismissNotifier?.invoke()
         }
     }
 }
@@ -330,6 +465,47 @@ sealed interface PipContent {
     ) : PipContent
 }
 
+private fun isPipEnterEligible(content: PipContent): Boolean = when (content) {
+    is PipContent.Timer -> content.isRunning && content.endTimeMillis > System.currentTimeMillis()
+    is PipContent.Stopwatch -> content.isRunning
+}
+
+private fun canDisplayInPip(content: PipContent): Boolean = when (content) {
+    is PipContent.Timer -> {
+        if (content.isRunning) content.endTimeMillis > System.currentTimeMillis()
+        else content.remainingSeconds > 0
+    }
+    is PipContent.Stopwatch -> content.isRunning || content.elapsedMs > 0L
+}
+
+@Composable
+private fun PipTimerSync(
+    isInPipMode: Boolean,
+    pipContent: PipContent?,
+    timerViewModel: TimerViewModel,
+    onPipContentChanged: (PipContent?) -> Unit
+) {
+    val activeTimers by timerViewModel.activeTimers.collectAsState()
+    val timerClockMillis by timerViewModel.clockMillis.collectAsState()
+    LaunchedEffect(isInPipMode, pipContent, activeTimers, timerClockMillis) {
+        if (!isInPipMode || pipContent !is PipContent.Timer) return@LaunchedEffect
+        val timersForPip = activeTimers.values.filter {
+            it.isActive(timerClockMillis) || (!it.isRunning && it.remainingSeconds > 0)
+        }
+        onPipContentChanged(
+            timersForPip.singleOrNull()?.let { timer ->
+                PipContent.Timer(
+                    timerId = timer.id,
+                    label = timer.label.ifBlank { "Timer" },
+                    remainingSeconds = timer.liveRemainingSeconds(timerClockMillis),
+                    endTimeMillis = timer.endTimeMillis,
+                    isRunning = timer.isRunning
+                )
+            }
+        )
+    }
+}
+
 @Composable
 private fun PipDisplay(content: PipContent) {
     val displayContent = content
@@ -342,8 +518,12 @@ private fun PipDisplay(content: PipContent) {
         is PipContent.Timer -> displayContent.isRunning
         is PipContent.Stopwatch -> displayContent.isRunning
     }
-    LaunchedEffect(displayContent) {
-        while (isRunning) {
+    LaunchedEffect(displayContent, isRunning) {
+        if (!isRunning) {
+            displaySeconds = pipDisplaySeconds(displayContent)
+            return@LaunchedEffect
+        }
+        while (true) {
             displaySeconds = pipDisplaySeconds(displayContent)
             delay(200)
         }
@@ -351,41 +531,54 @@ private fun PipDisplay(content: PipContent) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF101824)),
-        contentAlignment = Alignment.Center
+            .background(Color(0xFF101824))
     ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(verticalArrangement = Arrangement.Center) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 androidx.compose.material3.Text(
                     title,
                     color = Color(0xFFB8C7D9),
                     style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
+                Spacer(Modifier.width(8.dp))
                 androidx.compose.material3.Text(
                     text = TimeUtils.formatDuration(displaySeconds),
                     color = Color.White,
-                    style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
             }
-            Spacer(Modifier.width(10.dp))
-            androidx.compose.material3.Text(
-                text = if (isRunning) "RUNNING" else "PAUSED",
-                color = if (isRunning) Color(0xFF4DE3C1) else Color(0xFFFFC857),
-                style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
+            Spacer(Modifier.width(8.dp))
+            Box(
                 modifier = Modifier
                     .background(
                         color = if (isRunning) Color(0xFF173B3B) else Color(0xFF493813),
                         shape = RoundedCornerShape(50)
                     )
-                    .padding(horizontal = 8.dp, vertical = 5.dp)
-            )
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isRunning) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    contentDescription = if (isRunning) "Running" else "Paused",
+                    tint = if (isRunning) Color(0xFF4DE3C1) else Color(0xFFFFC857),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
         }
     }
 }
@@ -408,7 +601,6 @@ fun MainScreen(
     timerViewModel: TimerViewModel,
     intentFlow: SharedFlow<Intent>,
     isInPipMode: Boolean,
-    pipContent: PipContent?,
     onPipContentChanged: (PipContent?) -> Unit
 ) {
     RequestAppPermissions()
@@ -439,31 +631,26 @@ fun MainScreen(
         }
         when (pagerState.currentPage) {
             1 -> {
-                val timersForPip = activeTimers.values.filter {
-                    if (isInPipMode) it.remainingSeconds > 0 else it.isActive(timerClockMillis)
-                }
+                val timer = activeTimers.values
+                    .filter { it.isActive(timerClockMillis) }
+                    .singleOrNull()
                 onPipContentChanged(
-                    timersForPip.singleOrNull()?.let { timer ->
+                    timer?.let {
                         PipContent.Timer(
-                            timerId = timer.id,
-                            label = timer.label.ifBlank { "Timer" },
-                            remainingSeconds = timer.liveRemainingSeconds(timerClockMillis),
-                            endTimeMillis = timer.endTimeMillis,
-                            isRunning = timer.isRunning
+                            timerId = it.id,
+                            label = it.label.ifBlank { "Timer" },
+                            remainingSeconds = it.liveRemainingSeconds(timerClockMillis),
+                            endTimeMillis = it.endTimeMillis,
+                            isRunning = it.isRunning
                         )
                     }
                 )
             }
-            2 -> if (!isInPipMode) onPipContentChanged(stopwatchPipContent)
+            2 -> onPipContentChanged(stopwatchPipContent)
             else -> onPipContentChanged(null)
         }
     }
 
-    if (isInPipMode && pipContent != null) {
-        PipDisplay(pipContent)
-        return
-    }
-    
     LaunchedEffect(intentFlow) {
         intentFlow.collect { intent ->
             val targetTab = intent.getStringExtra(MainActivity.EXTRA_TARGET_TAB)
@@ -516,17 +703,14 @@ fun MainScreen(
                             onOpenSettings = { navController.navigate("settings") },
                             intentFlow = intentFlow,
                             onSelectedStopwatchStateChanged = { stopwatchId, state ->
-                                // Starting PiP still requires a running stopwatch. Once PiP is
-                                // open, however, pause is a real state—not a signal to keep
-                                // rendering the previous running snapshot.
                                 stopwatchPipContent = state
-                                    .takeIf { it.isRunning || isInPipMode }
+                                    .takeIf { it.isRunning }
                                     ?.let {
                                     PipContent.Stopwatch(
                                         stopwatchId = stopwatchId,
-                                        elapsedMs = state.elapsedMs,
+                                        elapsedMs = it.elapsedMs,
                                         snapshotElapsedRealtime = SystemClock.elapsedRealtime(),
-                                        isRunning = state.isRunning
+                                        isRunning = it.isRunning
                                     )
                                 }
                             }

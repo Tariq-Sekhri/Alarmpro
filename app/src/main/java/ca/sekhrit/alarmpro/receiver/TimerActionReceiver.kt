@@ -18,7 +18,11 @@ class TimerActionReceiver : BroadcastReceiver() {
             else -> false
         }
         if (handledByLiveState) {
-            MainActivity.notifyTimerPipChanged(timerId)
+            if (intent.action == ACTION_CLOSE) {
+                MainActivity.dismissPipIfActive()
+            } else {
+                MainActivity.notifyTimerPipChanged(timerId)
+            }
             return
         }
 
@@ -64,6 +68,7 @@ class TimerActionReceiver : BroadcastReceiver() {
                 repository.removeTimer(timerId)
                 NotificationHelper.cancelTimerNotification(context, timerId)
                 TimerViewModel.instance()?.syncFromStorage()
+                MainActivity.dismissPipIfActive()
             }
         }
     }

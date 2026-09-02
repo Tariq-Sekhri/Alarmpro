@@ -21,14 +21,18 @@ class StopwatchActionReceiver : BroadcastReceiver() {
                 ACTION_RESET -> viewModel.reset()
                 else -> return
             }
-            val ui = viewModel.state.value
-            MainActivity.notifyStopwatchPipChanged(
-                stopwatchId,
-                StopwatchRuntimeState(
-                    elapsedMs = ui.elapsedMs,
-                    isRunning = ui.isRunning
+            if (intent.action == ACTION_RESET) {
+                MainActivity.dismissPipIfActive()
+            } else {
+                val ui = viewModel.state.value
+                MainActivity.notifyStopwatchPipChanged(
+                    stopwatchId,
+                    StopwatchRuntimeState(
+                        elapsedMs = ui.elapsedMs,
+                        isRunning = ui.isRunning
+                    )
                 )
-            )
+            }
             return
         }
 
@@ -55,7 +59,7 @@ class StopwatchActionReceiver : BroadcastReceiver() {
             ACTION_STOP, ACTION_RESET -> {
                 repository.clear(stopwatchId)
                 StopwatchViewModel.instance(stopwatchId)?.syncFromStorage()
-                MainActivity.notifyStopwatchPipChanged(stopwatchId, StopwatchRuntimeState())
+                MainActivity.dismissPipIfActive()
                 NotificationHelper.cancelActiveStopwatchNotification(context, stopwatchId)
             }
             ACTION_ADD_LAP -> Unit // Laps are UI history; keep the running state unchanged.
