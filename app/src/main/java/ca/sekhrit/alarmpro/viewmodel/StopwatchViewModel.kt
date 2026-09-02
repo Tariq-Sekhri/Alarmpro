@@ -5,6 +5,8 @@ import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ca.sekhrit.alarmpro.data.StopwatchAlertPresetRepository
+import ca.sekhrit.alarmpro.data.StopwatchRuntimeState
+import ca.sekhrit.alarmpro.data.StopwatchStateRepository
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.util.TimeUtils
 import kotlinx.coroutines.Job
@@ -46,6 +48,7 @@ data class StopwatchUiState(
 
 class StopwatchViewModel(application: Application) : AndroidViewModel(application) {
     private val presetRepository = StopwatchAlertPresetRepository(application)
+    private val stateRepository = StopwatchStateRepository(application)
     private var sessionId: String = UUID.randomUUID().toString()
     val stopwatchId: String get() = sessionId
     private var startElapsedRealtime = 0L
@@ -78,9 +81,13 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
         instances.remove(sessionId)
         sessionId = id
         instances[sessionId] = WeakReference(this)
+        restoreRuntimeState()
     }
 
     private fun currentElapsedMs(): Long {
+        // The repository owns the durable checkpoint; this is the UI's
+        // in-process projection between checkpoints. Reading SharedPreferences
+        // for every 10 ms frame would make the timer itself janky.
         return if (_state.value.isRunning) {
             accumulatedMs + (SystemClock.elapsedRealtime() - startElapsedRealtime)
         } else {
@@ -124,12 +131,21 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
             tickJob?.cancel()
             tickJob = null
             _state.value = _state.value.copy(isRunning = false, elapsedMs = accumulatedMs)
+            stateRepository.save(stopwatchId, StopwatchRuntimeState(elapsedMs = accumulatedMs))
             lastNotificationSecond = -1L
             NotificationHelper.showPausedStopwatchNotification(getApplication(), stopwatchId, accumulatedMs)
         } else {
             startElapsedRealtime = SystemClock.elapsedRealtime()
             lastNotificationSecond = accumulatedMs / 1000L
             _state.value = _state.value.copy(isRunning = true)
+            stateRepository.save(
+                stopwatchId,
+                StopwatchRuntimeState(
+                    elapsedMs = accumulatedMs,
+                    isRunning = true,
+                    startedAtMillis = System.currentTimeMillis()
+                )
+            )
             NotificationHelper.showActiveStopwatchNotification(getApplication(), stopwatchId, accumulatedMs)
             tickJob?.cancel()
             tickJob = viewModelScope.launch {
@@ -156,6 +172,7 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
         tickJob?.cancel()
         tickJob = null
         _state.value = _state.value.copy(isRunning = false, elapsedMs = accumulatedMs)
+        stateRepository.save(stopwatchId, StopwatchRuntimeState(elapsedMs = accumulatedMs))
         lastNotificationSecond = -1L
         NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
     }
@@ -228,8 +245,40 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
             marks = emptyList(),
             alertEvent = null
         )
+        stateRepository.clear(stopwatchId)
         NotificationHelper.cancelActiveStopwatchNotification(getApplication(), stopwatchId)
         NotificationHelper.cancelStopwatchMarkNotification(getApplication())
+    }
+
+    /** Refreshes this UI projection after an external notification/PiP action. */
+    fun syncFromStorage() {
+        restoreRuntimeState()
+    }
+
+    private fun restoreRuntimeState() {
+        val runtime = stateRepository.load(stopwatchId)
+        accumulatedMs = runtime.liveElapsedMs()
+        startElapsedRealtime = if (runtime.isRunning) SystemClock.elapsedRealtime() else 0L
+        _state.value = _state.value.copy(
+            elapsedMs = accumulatedMs,
+            isRunning = runtime.isRunning
+        )
+        if (runtime.isRunning) {
+            ensureTicker()
+        } else {
+            tickJob?.cancel()
+            tickJob = null
+        }
+    }
+
+    private fun ensureTicker() {
+        if (tickJob?.isActive == true || !_state.value.isRunning) return
+        tickJob = viewModelScope.launch {
+            while (true) {
+                tick()
+                delay(10)
+            }
+        }
     }
 
     override fun onCleared() {

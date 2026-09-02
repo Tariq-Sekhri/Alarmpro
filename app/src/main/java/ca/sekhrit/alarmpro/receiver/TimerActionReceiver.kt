@@ -3,12 +3,28 @@ package ca.sekhrit.alarmpro.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import ca.sekhrit.alarmpro.MainActivity
 import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.viewmodel.TimerViewModel
 
 class TimerActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val timerId = intent.getStringExtra(TimerScheduler.EXTRA_TIMER_ID) ?: return
+        val liveViewModel = TimerViewModel.instance()
+        val handledByLiveState = when (intent.action) {
+            ACTION_PAUSE -> liveViewModel?.pauseTimerById(timerId) == true
+            ACTION_RESUME -> liveViewModel?.resumeTimerById(timerId) == true
+            ACTION_CLOSE -> liveViewModel?.closeTimerById(timerId) == true
+            else -> false
+        }
+        if (handledByLiveState) {
+            MainActivity.notifyTimerPipChanged(timerId)
+            return
+        }
+
+        // The app process may not exist when a notification action arrives.
+        // In that case, use the durable fallback; an open PiP always takes the
+        // live-state path above.
         val repository = TimerRepository(context)
         val timers = repository.loadAll()
         val timer = timers.find { it.id == timerId } ?: run {
@@ -55,6 +71,7 @@ class TimerActionReceiver : BroadcastReceiver() {
     private fun saveTimer(repository: TimerRepository, timers: List<ca.sekhrit.alarmpro.data.TimerState>, updated: ca.sekhrit.alarmpro.data.TimerState) {
         repository.saveAll(timers.map { if (it.id == updated.id) updated else it })
         TimerViewModel.instance()?.syncFromStorage()
+        MainActivity.notifyTimerPipChanged(updated.id)
     }
 
     companion object {

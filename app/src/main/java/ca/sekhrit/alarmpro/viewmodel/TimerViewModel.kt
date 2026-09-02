@@ -98,17 +98,21 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pausePreset(preset: TimerPreset) {
-        val current = _activeTimers.value[preset.id] ?: return
+        pauseTimerById(_activeTimers.value[preset.id]?.id ?: return)
+    }
+
+    /** Used by notification and PiP actions while this live state holder exists. */
+    fun pauseTimerById(timerId: String): Boolean {
+        val entry = _activeTimers.value.entries.firstOrNull { it.value.id == timerId } ?: return false
+        val current = entry.value
         val remainingSeconds = current.liveRemainingSeconds()
         scheduler.cancel(current.id)
-        notificationSeconds.remove(preset.id)
+        notificationSeconds.remove(entry.key)
         val paused = current.copy(remainingSeconds = remainingSeconds, endTimeMillis = 0L, isRunning = false)
-        updateActiveTimer(
-            preset.id,
-            paused
-        )
+        updateActiveTimer(entry.key, paused)
         NotificationHelper.showPausedTimerNotification(getApplication(), paused)
         ensureTicker()
+        return true
     }
 
     fun resumePreset(preset: TimerPreset) {
@@ -117,13 +121,34 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
             startPreset(preset)
             return
         }
+        resumeTimerById(current.id)
+    }
+
+    /** Used by notification and PiP actions while this live state holder exists. */
+    fun resumeTimerById(timerId: String): Boolean {
+        val entry = _activeTimers.value.entries.firstOrNull { it.value.id == timerId } ?: return false
+        val current = entry.value
+        if (current.remainingSeconds <= 0) return false
         val endTime = System.currentTimeMillis() + current.remainingSeconds * 1000L
         val resumed = current.copy(endTimeMillis = endTime, isRunning = true)
         scheduler.schedule(resumed.id, endTime, resumed.label, resumed.totalSeconds)
-        updateActiveTimer(preset.id, resumed)
+        updateActiveTimer(entry.key, resumed)
         NotificationHelper.showActiveTimerNotification(getApplication(), resumed)
-        notificationSeconds[preset.id] = resumed.remainingSeconds
+        notificationSeconds[entry.key] = resumed.remainingSeconds
         ensureTicker()
+        return true
+    }
+
+    /** Removes a timer through the same state flow rendered by PiP. */
+    fun closeTimerById(timerId: String): Boolean {
+        val entry = _activeTimers.value.entries.firstOrNull { it.value.id == timerId } ?: return false
+        scheduler.cancel(timerId)
+        NotificationHelper.cancelTimerNotification(getApplication(), timerId)
+        notificationSeconds.remove(entry.key)
+        _activeTimers.value = _activeTimers.value.toMutableMap().apply { remove(entry.key) }
+        persistActiveTimers()
+        ensureTicker()
+        return true
     }
 
     fun restartPreset(preset: TimerPreset) {
