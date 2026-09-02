@@ -244,7 +244,8 @@ object NotificationHelper {
         context: Context,
         timerId: String,
         label: String,
-        totalSeconds: Int
+        totalSeconds: Int,
+        assistantPresetId: String? = null
     ): Notification {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -258,6 +259,9 @@ object NotificationHelper {
             putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
             putExtra(AlarmRingActivity.EXTRA_LABEL, label)
             putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
+            assistantPresetId?.let {
+                putExtra(AlarmRingActivity.EXTRA_ASSISTANT_TIMER_PRESET_ID, it)
+            }
         }
         val openPendingIntent = ringingActivityPendingIntent(
             context = context,
@@ -268,6 +272,9 @@ object NotificationHelper {
         val dismissIntent = Intent(context, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_DISMISS_TIMER
             putExtra(TimerScheduler.EXTRA_TIMER_ID, timerId)
+            assistantPresetId?.let {
+                putExtra(AlarmRingActivity.EXTRA_ASSISTANT_TIMER_PRESET_ID, it)
+            }
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
             context,

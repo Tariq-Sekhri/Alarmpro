@@ -671,14 +671,6 @@ private fun TimerPresetCard(
             }
             if (selectionMode) {
                 Checkbox(checked = selected, onCheckedChange = { onToggleSelection() })
-            } else {
-                IconButton(onClick = onRestart) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "Restart timer",
-                        tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
 
             Column(modifier = Modifier.weight(1f)) {
@@ -712,7 +704,21 @@ private fun TimerPresetCard(
                             tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    IconButton(onClick = onRestart) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Restart timer",
+                            tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 } else {
+                    IconButton(onClick = onRestart) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Restart timer",
+                            tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Switch(
                         checked = isRunning,
                         onCheckedChange = onToggle,

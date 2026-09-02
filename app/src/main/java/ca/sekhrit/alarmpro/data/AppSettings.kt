@@ -38,6 +38,7 @@ data class AppSettings(
     val upcomingAlarmLeadMinutes: Int = 60,
     val timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
     val timerControlStyle: TimerControlStyle = TimerControlStyle.SWITCH,
+    val deleteAssistantTimersOnDismiss: Boolean = false,
     val timerSortMode: TimerSortMode = TimerSortMode.MANUAL,
     val activeTimersFirst: Boolean = false,
     val silentNotifications: Boolean = false,

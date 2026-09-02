@@ -106,7 +106,8 @@ class AlarmClockCommandActivity : Activity() {
         val preset = TimerPreset(
             totalSeconds = seconds,
             label = label,
-            sortOrder = sortOrder
+            sortOrder = sortOrder,
+            isAssistantCreated = true
         )
         presetRepo.savePresets(existingPresets + preset)
 

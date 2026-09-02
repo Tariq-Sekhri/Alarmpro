@@ -127,14 +127,30 @@ class TimerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun restartPreset(preset: TimerPreset) {
-        startPreset(preset)
+        val current = _activeTimers.value[preset.id]
+        if (current?.isActive() == true) {
+            scheduler.cancel(current.id)
+            notificationSeconds.remove(preset.id)
+            val reset = current.copy(
+                remainingSeconds = preset.totalSeconds,
+                endTimeMillis = 0L,
+                isRunning = false
+            )
+            updateActiveTimer(preset.id, reset)
+            NotificationHelper.showPausedTimerNotification(getApplication(), reset)
+            ensureTicker()
+        } else {
+            startPreset(preset)
+        }
     }
 
     fun addPreset(totalSeconds: Int, label: String = "") {
         if (totalSeconds <= 0) return
-        val updated = _presets.value + TimerPreset(totalSeconds = totalSeconds, label = label.trim())
+        val preset = TimerPreset(totalSeconds = totalSeconds, label = label.trim())
+        val updated = _presets.value + preset
         _presets.value = updated
         presetRepository.savePresets(updated)
+        startPreset(preset)
     }
 
     fun updatePreset(preset: TimerPreset, totalSeconds: Int, label: String) {

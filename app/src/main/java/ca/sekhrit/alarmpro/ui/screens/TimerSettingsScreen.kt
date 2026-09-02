@@ -93,6 +93,14 @@ fun TimerSettingsScreen(
                 onClick = { showControlDialog = true }
             )
             SettingsSwitchRow(
+                title = "Delete Assistant timers after dismissal",
+                subtitle = "Remove Google Assistant-created timers once they finish and are dismissed",
+                checked = settings.deleteAssistantTimersOnDismiss,
+                onCheckedChange = { enabled ->
+                    viewModel.updateSettings(settings.copy(deleteAssistantTimersOnDismiss = enabled))
+                }
+            )
+            SettingsSwitchRow(
                 title = "Gradually increase volume",
                 checked = false,
                 onCheckedChange = {}

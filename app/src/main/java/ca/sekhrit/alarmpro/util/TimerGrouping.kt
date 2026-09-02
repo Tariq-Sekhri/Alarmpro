@@ -97,8 +97,18 @@ object TimerGrouping {
                 )
             }
 
+        val sortedSections = sections.sortedBy { it.sortKey }
+        // Automatic time sorts keep group sections together at the top. Manual mode
+        // retains the exact root ordering chosen through drag-and-drop.
+        val orderedSections = if (sortMode == TimerSortMode.MANUAL) {
+            sortedSections
+        } else {
+            sortedSections.filterIsInstance<ListSection.GroupSection>() +
+                sortedSections.filterIsInstance<ListSection.UngroupedPreset>()
+        }
+
         val entries = mutableListOf<ListEntry>()
-        sections.sortedBy { it.sortKey }.forEach { section ->
+        orderedSections.forEach { section ->
             when (section) {
                 is ListSection.GroupSection -> {
                     val labelMembers = membersOf(section.group.id, presets)

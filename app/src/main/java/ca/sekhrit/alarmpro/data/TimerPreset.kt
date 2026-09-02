@@ -7,5 +7,6 @@ data class TimerPreset(
     val totalSeconds: Int,
     val label: String = "",
     val groupId: String? = null,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val isAssistantCreated: Boolean = false
 )

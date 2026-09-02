@@ -10,6 +10,7 @@ import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.data.isSnoozeAllowed
 import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
 import ca.sekhrit.alarmpro.data.TimerRepository
+import ca.sekhrit.alarmpro.data.TimerPresetRepository
 import ca.sekhrit.alarmpro.domain.AlarmActions
 import ca.sekhrit.alarmpro.data.upcomingAlarmLeadLabel
 import ca.sekhrit.alarmpro.util.AlarmGrouping
@@ -47,10 +48,14 @@ class AlarmReceiver : BroadcastReceiver() {
             ACTION_DISMISS_TIMER -> {
                 val timerId = intent.getStringExtra(TimerScheduler.EXTRA_TIMER_ID) ?: return
                 TimerRepository(context).removeTimer(timerId)
+                intent.getStringExtra(AlarmRingActivity.EXTRA_ASSISTANT_TIMER_PRESET_ID)
+                    ?.takeIf { SettingsRepository(context).load().deleteAssistantTimersOnDismiss }
+                    ?.let { TimerPresetRepository(context).removePreset(it) }
                 TimerScheduler(context).cancel(timerId)
                 NotificationHelper.cancelTimerNotification(context, timerId)
                 AlarmRingingService.stop(context)
                 AlarmRingActivity.notifyRingingStopped(context)
+                TimerViewModel.instance()?.syncFromStorage()
             }
         }
     }
@@ -198,6 +203,12 @@ class AlarmReceiver : BroadcastReceiver() {
                 }
                 val label = timer.label
                 val totalSeconds = timer.totalSeconds
+                val assistantPresetId = timer.presetId
+                    ?.let { presetId ->
+                        TimerPresetRepository(context).loadPresets()
+                            .find { it.id == presetId && it.isAssistantCreated }
+                            ?.id
+                    }
                 TimerScheduler(context).cancel(timerId)
                 NotificationHelper.cancelTimerNotification(context, timerId)
                 repository.removeTimer(timerId)
@@ -207,9 +218,10 @@ class AlarmReceiver : BroadcastReceiver() {
                     ringType = AlarmRingActivity.TYPE_TIMER,
                     timerId = timerId,
                     label = label,
-                    totalSeconds = totalSeconds
+                    totalSeconds = totalSeconds,
+                    assistantPresetId = assistantPresetId
                 )
-                AlarmRingingService.startTimer(context, timerId, label, totalSeconds)
+                AlarmRingingService.startTimer(context, timerId, label, totalSeconds, assistantPresetId)
             }
         }
 
@@ -223,7 +235,8 @@ class AlarmReceiver : BroadcastReceiver() {
             label: String = "",
             snoozeAllowed: Boolean = true,
             snoozeMinutes: Int = 10,
-            totalSeconds: Int = 0
+            totalSeconds: Int = 0,
+            assistantPresetId: String? = null
         ) {
             val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -237,6 +250,9 @@ class AlarmReceiver : BroadcastReceiver() {
                 putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
                 putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
                 putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
+                assistantPresetId?.let {
+                    putExtra(AlarmRingActivity.EXTRA_ASSISTANT_TIMER_PRESET_ID, it)
+                }
             }
             val requestCode = if (alarmId.isNotBlank()) {
                 alarmId.hashCode()

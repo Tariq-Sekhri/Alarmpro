@@ -99,6 +99,7 @@ class AlarmRingActivity : ComponentActivity() {
         val ringType = intent.getStringExtra(EXTRA_RING_TYPE) ?: TYPE_ALARM
         val alarmId = intent.getStringExtra(EXTRA_ALARM_ID).orEmpty()
         val timerId = intent.getStringExtra(EXTRA_TIMER_ID).orEmpty()
+        val assistantTimerPresetId = intent.getStringExtra(EXTRA_ASSISTANT_TIMER_PRESET_ID)
         val hour = intent.getIntExtra(EXTRA_HOUR, 7)
         val minute = intent.getIntExtra(EXTRA_MINUTE, 0)
         val label = intent.getStringExtra(EXTRA_LABEL).orEmpty()
@@ -159,6 +160,13 @@ class AlarmRingActivity : ComponentActivity() {
                                     TimerRepository(this@AlarmRingActivity).removeTimer(timerId)
                                     TimerScheduler(this@AlarmRingActivity).cancel(timerId)
                                     NotificationHelper.cancelTimerNotification(this@AlarmRingActivity, timerId)
+                                }
+                                if (
+                                    assistantTimerPresetId != null &&
+                                    SettingsRepository(this@AlarmRingActivity).load().deleteAssistantTimersOnDismiss
+                                ) {
+                                    ca.sekhrit.alarmpro.data.TimerPresetRepository(this@AlarmRingActivity)
+                                        .removePreset(assistantTimerPresetId)
                                 }
                             }
                         }
@@ -230,6 +238,7 @@ class AlarmRingActivity : ComponentActivity() {
         const val EXTRA_SOUND_URI = "SOUND_URI"
         const val EXTRA_TIMER_ID = "TIMER_ID"
         const val EXTRA_TIMER_TOTAL_SECONDS = "TIMER_TOTAL_SECONDS"
+        const val EXTRA_ASSISTANT_TIMER_PRESET_ID = "ASSISTANT_TIMER_PRESET_ID"
         const val TYPE_ALARM = "alarm"
         const val TYPE_TIMER = "timer"
         const val TYPE_PREVIEW = "preview"

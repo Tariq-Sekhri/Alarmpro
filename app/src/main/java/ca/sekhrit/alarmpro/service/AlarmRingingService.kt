@@ -132,12 +132,14 @@ class AlarmRingingService : Service() {
         val label = intent.getStringExtra(AlarmRingActivity.EXTRA_LABEL).orEmpty()
         val totalSeconds =
             intent.getIntExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, 0)
+        val assistantPresetId = intent.getStringExtra(AlarmRingActivity.EXTRA_ASSISTANT_TIMER_PRESET_ID)
 
         val notification = NotificationHelper.buildTimerNotification(
             context = this,
             timerId = timerId,
             label = label,
-            totalSeconds = totalSeconds
+            totalSeconds = totalSeconds,
+            assistantPresetId = assistantPresetId
         )
         startForeground(TimerScheduler.notificationIdFor(timerId), notification)
         acquireWakeLock()
@@ -275,7 +277,8 @@ class AlarmRingingService : Service() {
             context: Context,
             timerId: String,
             label: String,
-            totalSeconds: Int
+            totalSeconds: Int,
+            assistantPresetId: String? = null
         ) {
             val intent = Intent(context, AlarmRingingService::class.java).apply {
                 action = ACTION_START_TIMER
@@ -283,6 +286,9 @@ class AlarmRingingService : Service() {
                 putExtra(AlarmRingActivity.EXTRA_TIMER_ID, timerId)
                 putExtra(AlarmRingActivity.EXTRA_LABEL, label)
                 putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
+                assistantPresetId?.let {
+                    putExtra(AlarmRingActivity.EXTRA_ASSISTANT_TIMER_PRESET_ID, it)
+                }
             }
             ContextCompat.startForegroundService(context, intent)
         }

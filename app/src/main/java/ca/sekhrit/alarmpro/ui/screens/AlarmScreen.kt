@@ -70,7 +70,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.FocusRequester
@@ -101,7 +105,9 @@ import ca.sekhrit.alarmpro.util.RepeatCalculator
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 import kotlinx.coroutines.delay
+import java.time.DayOfWeek
 import java.time.LocalDateTime
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -705,6 +711,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                 displayLabel = displayLabel,
                                 use24Hour = settings.use24HourFormat,
                                 repeatLine = RepeatCalculator.alarmCardRepeatLine(entry.alarm, now, settings.use24HourFormat),
+                                now = now,
                                 skipScheduled = RepeatCalculator.hasSkipScheduled(entry.alarm, now),
                                 indented = entry.group != null,
                                 selectionMode = selectionMode,
@@ -942,6 +949,7 @@ private fun AlarmCard(
     displayLabel: String,
     use24Hour: Boolean,
     repeatLine: String,
+    now: LocalDateTime,
     skipScheduled: Boolean,
     indented: Boolean,
     selectionMode: Boolean,
@@ -963,6 +971,33 @@ private fun AlarmCard(
         MaterialTheme.colorScheme.onSurface
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val nextDayLabel = if (
+        alarm.repeat.type in setOf(
+            ca.sekhrit.alarmpro.data.RepeatType.WEEKLY,
+            ca.sekhrit.alarmpro.data.RepeatType.INTERVAL_WEEKS
+        ) && alarm.repeat.daysOfWeek.size > 1
+    ) {
+        DayOfWeek.of(
+            RepeatCalculator.nextTriggerDate(alarm, now.toLocalDate(), now.toLocalTime()).dayOfWeek.value
+        ).getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault()).uppercase(Locale.getDefault())
+    } else {
+        null
+    }
+    val highlightedRepeatLine = remember(repeatLine, nextDayLabel) {
+        val nextLabel = nextDayLabel.orEmpty()
+        val highlightStart = if (nextLabel.isEmpty()) -1 else repeatLine.indexOf(nextLabel)
+        if (highlightStart < 0) {
+            buildAnnotatedString { append(repeatLine) }
+        } else {
+            buildAnnotatedString {
+                append(repeatLine.substring(0, highlightStart))
+                withStyle(SpanStyle(color = ElectricCyan, fontWeight = FontWeight.Bold)) {
+                    append(nextLabel)
+                }
+                append(repeatLine.substring(highlightStart + nextLabel.length))
+            }
+        }
     }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -1057,7 +1092,7 @@ private fun AlarmCard(
                     )
                 }
                 Text(
-                    text = repeatLine,
+                    text = highlightedRepeatLine,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

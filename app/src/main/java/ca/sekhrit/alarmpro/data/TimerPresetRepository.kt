@@ -20,7 +20,8 @@ class TimerPresetRepository(context: Context) {
                         totalSeconds = item.getInt("totalSeconds"),
                         label = item.optString("label", ""),
                         groupId = if (item.has("groupId")) item.getString("groupId") else null,
-                        sortOrder = item.optInt("sortOrder", 0)
+                        sortOrder = item.optInt("sortOrder", 0),
+                        isAssistantCreated = item.optBoolean("isAssistantCreated", false)
                     )
                 )
             }
@@ -37,10 +38,15 @@ class TimerPresetRepository(context: Context) {
                     put("label", preset.label)
                     preset.groupId?.let { put("groupId", it) }
                     put("sortOrder", preset.sortOrder)
+                    put("isAssistantCreated", preset.isAssistantCreated)
                 }
             )
         }
         prefs.edit().putString(KEY_PRESETS, array.toString()).apply()
+    }
+
+    fun removePreset(presetId: String) {
+        savePresets(loadPresets().filter { it.id != presetId })
     }
 
     companion object {
