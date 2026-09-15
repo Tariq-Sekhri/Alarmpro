@@ -40,8 +40,8 @@ android {
         applicationId = "ca.sekhrit.alarmpro"
         minSdk = 26
         targetSdk = 36
-        versionCode = ciVersionCode.orNull ?: 32
-        versionName = ciVersionName.orNull ?: "0.6.9"
+        versionCode = ciVersionCode.orNull ?: 36
+        versionName = ciVersionName.orNull ?: "0.7.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -61,7 +61,11 @@ android {
             }
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }

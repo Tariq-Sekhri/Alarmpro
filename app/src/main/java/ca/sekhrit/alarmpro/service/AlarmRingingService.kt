@@ -143,9 +143,13 @@ class AlarmRingingService : Service() {
         )
         startForeground(TimerScheduler.notificationIdFor(timerId), notification)
         acquireWakeLock()
-        startAlarmSound(AlarmSoundUtils.systemDefaultUri())
-        startVibration()
         val settings = SettingsRepository(this).load()
+        val soundUri = intent.getStringExtra(AlarmRingActivity.EXTRA_SOUND_URI)
+            ?.takeIf { it.isNotBlank() }
+            ?.let(Uri::parse)
+            ?: AlarmSoundUtils.resolveTimerPlaybackUri(settings)
+        startAlarmSound(soundUri)
+        startVibration()
         timerSpeechText(
             format = settings.timerSpeechFormat,
             label = label,
@@ -278,7 +282,8 @@ class AlarmRingingService : Service() {
             timerId: String,
             label: String,
             totalSeconds: Int,
-            assistantPresetId: String? = null
+            assistantPresetId: String? = null,
+            soundUri: String? = null
         ) {
             val intent = Intent(context, AlarmRingingService::class.java).apply {
                 action = ACTION_START_TIMER
@@ -288,6 +293,9 @@ class AlarmRingingService : Service() {
                 putExtra(AlarmRingActivity.EXTRA_TIMER_TOTAL_SECONDS, totalSeconds)
                 assistantPresetId?.let {
                     putExtra(AlarmRingActivity.EXTRA_ASSISTANT_TIMER_PRESET_ID, it)
+                }
+                soundUri?.let {
+                    putExtra(AlarmRingActivity.EXTRA_SOUND_URI, it)
                 }
             }
             ContextCompat.startForegroundService(context, intent)

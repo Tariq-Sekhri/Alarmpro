@@ -138,54 +138,54 @@ class AlarmReceiver : BroadcastReceiver() {
             context: Context,
             alarmId: String
         ): PreparedAlarm? {
-        val settings = SettingsRepository(context).load()
-        val alarms = AlarmRepository(context).loadAlarms()
-        val alarm = alarms.find { it.id == alarmId }
-        if (alarm == null || !alarm.isEnabled) {
-            AlarmScheduler(context).cancel(alarmId)
-            NotificationHelper.cancelAlarmNotification(context, alarmId)
-            return null
-        }
-        val group = alarm.groupId?.let { groupId ->
-            AlarmGroupRepository(context).loadGroups().find { it.id == groupId }
-        }
-        val members = alarm.groupId?.let { AlarmGrouping.membersOf(it, alarms) }.orEmpty()
-        val spokenLabel = alarm.let {
-            AlarmGrouping.effectiveLabel(
-                it,
-                group,
-                AlarmGrouping.indexInGroup(it, members)
+            val settings = SettingsRepository(context).load()
+            val alarms = AlarmRepository(context).loadAlarms()
+            val alarm = alarms.find { it.id == alarmId }
+            if (alarm == null || !alarm.isEnabled) {
+                AlarmScheduler(context).cancel(alarmId)
+                NotificationHelper.cancelAlarmNotification(context, alarmId)
+                return null
+            }
+            val group = alarm.groupId?.let { groupId ->
+                AlarmGroupRepository(context).loadGroups().find { it.id == groupId }
+            }
+            val members = alarm.groupId?.let { AlarmGrouping.membersOf(it, alarms) }.orEmpty()
+            val spokenLabel = alarm.let {
+                AlarmGrouping.effectiveLabel(
+                    it,
+                    group,
+                    AlarmGrouping.indexInGroup(it, members)
+                )
+            }
+            val snoozeAllowed = alarm.isSnoozeAllowed(settings)
+            val snoozeMinutes = alarm.resolveSnoozeMinutes(settings)
+            val soundUri = AlarmSoundUtils.resolvePlaybackUri(context, alarm, settings).toString()
+
+            NotificationHelper.cancelUpcomingNotification(context, alarmId)
+
+            val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_ALARM)
+                putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
+                putExtra(AlarmRingActivity.EXTRA_HOUR, alarm.time.hour)
+                putExtra(AlarmRingActivity.EXTRA_MINUTE, alarm.time.minute)
+                putExtra(AlarmRingActivity.EXTRA_LABEL, spokenLabel)
+                putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
+                putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
+            }
+            return PreparedAlarm(
+                ringIntent = ringIntent,
+                hour = alarm.time.hour,
+                minute = alarm.time.minute,
+                label = spokenLabel,
+                vibrate = alarm.vibrate,
+                readLabelAloud = alarm.readLabelAloud,
+                snoozeAllowed = snoozeAllowed,
+                snoozeMinutes = snoozeMinutes,
+                soundUri = soundUri
             )
         }
-        val snoozeAllowed = alarm.isSnoozeAllowed(settings)
-        val snoozeMinutes = alarm.resolveSnoozeMinutes(settings)
-        val soundUri = AlarmSoundUtils.resolvePlaybackUri(context, alarm, settings).toString()
-
-        NotificationHelper.cancelUpcomingNotification(context, alarmId)
-
-        val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_ALARM)
-            putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
-            putExtra(AlarmRingActivity.EXTRA_HOUR, alarm.time.hour)
-            putExtra(AlarmRingActivity.EXTRA_MINUTE, alarm.time.minute)
-            putExtra(AlarmRingActivity.EXTRA_LABEL, spokenLabel)
-            putExtra(AlarmRingActivity.EXTRA_SNOOZE_ALLOWED, snoozeAllowed)
-            putExtra(AlarmRingActivity.EXTRA_SNOOZE_MINUTES, snoozeMinutes)
-        }
-        return PreparedAlarm(
-            ringIntent = ringIntent,
-            hour = alarm.time.hour,
-            minute = alarm.time.minute,
-            label = spokenLabel,
-            vibrate = alarm.vibrate,
-            readLabelAloud = alarm.readLabelAloud,
-            snoozeAllowed = snoozeAllowed,
-            snoozeMinutes = snoozeMinutes,
-            soundUri = soundUri
-        )
-    }
 
         /**
          * Claims a completed timer before starting its alert. Both the exact
@@ -208,6 +208,8 @@ class AlarmReceiver : BroadcastReceiver() {
                             .find { it.id == presetId && it.isAssistantCreated }
                             ?.id
                     }
+                val settings = SettingsRepository(context).load()
+                val soundUri = AlarmSoundUtils.resolveTimerPlaybackUri(settings).toString()
                 TimerScheduler(context).cancel(timerId)
                 NotificationHelper.cancelTimerNotification(context, timerId)
                 repository.removeTimer(timerId)
@@ -221,7 +223,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     totalSeconds = totalSeconds,
                     assistantPresetId = assistantPresetId
                 )
-                AlarmRingingService.startTimer(context, timerId, label, totalSeconds, assistantPresetId)
+                AlarmRingingService.startTimer(context, timerId, label, totalSeconds, assistantPresetId, soundUri)
             }
         }
 

@@ -27,6 +27,7 @@ data class AppSettings(
     val defaultVibrate: Boolean = true,
     val defaultReadLabelAloud: Boolean = false,
     val defaultAlarmSoundUri: String? = null,
+    val timerSoundUri: String? = null,
     val use24HourFormat: Boolean = false,
     val timerSpeechFormat: TimerSpeechFormat = TimerSpeechFormat.TIME_AND_LABEL,
     val timerSpeechTemplate: String = DEFAULT_TIMER_SPEECH_TEMPLATE,

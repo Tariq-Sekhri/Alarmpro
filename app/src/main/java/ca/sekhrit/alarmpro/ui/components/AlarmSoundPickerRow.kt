@@ -31,7 +31,11 @@ fun AlarmSoundPickerRow(
     soundName: String,
     pickerUri: Uri?,
     onSoundPicked: (Uri?) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String = "Choose alarm sound",
+    text: String = "Choose a system ringtone or select any audio file on your device.",
+    contentDescription: String = "Change alarm sound",
+    pickerTitle: String = "Select alarm sound"
 ) {
     val context = LocalContext.current
     var showSourceDialog by remember { mutableStateOf(false) }
@@ -57,13 +61,13 @@ fun AlarmSoundPickerRow(
     if (showSourceDialog) {
         AlertDialog(
             onDismissRequest = { showSourceDialog = false },
-            title = { Text("Choose alarm sound") },
-            text = { Text("Choose a system ringtone or select any audio file on your device.") },
+            title = { Text(title) },
+            text = { Text(text) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showSourceDialog = false
-                        ringtoneLauncher.launch(AlarmSoundUtils.createPickerIntent(context, pickerUri))
+                        ringtoneLauncher.launch(AlarmSoundUtils.createPickerIntent(context, pickerUri, pickerTitle))
                     }
                 ) {
                     Text("System ringtone")
@@ -100,7 +104,7 @@ fun AlarmSoundPickerRow(
             Text(soundName, modifier = Modifier.weight(1f))
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Change alarm sound"
+                contentDescription = contentDescription
             )
         }
     }

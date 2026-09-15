@@ -20,6 +20,11 @@ object AlarmSoundUtils {
         return explicit ?: systemDefaultUri()
     }
 
+    fun resolveTimerPlaybackUri(settings: AppSettings): Uri {
+        val explicit = settings.timerSoundUri?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
+        return explicit ?: systemDefaultUri()
+    }
+
     fun resolvePickerUri(alarm: Alarm?, settings: AppSettings): Uri {
         return alarm?.soundUri?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
             ?: settings.defaultAlarmSoundUri?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
@@ -53,10 +58,14 @@ object AlarmSoundUtils {
         }
     }
 
-    fun createPickerIntent(context: Context, existingUri: Uri?): Intent {
+    fun createPickerIntent(
+        context: Context,
+        existingUri: Uri?,
+        title: String = "Select alarm sound"
+    ): Intent {
         return Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
             putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select alarm sound")
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, title)
             putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existingUri ?: systemDefaultUri())
             putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
             putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)

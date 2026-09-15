@@ -52,3 +52,14 @@ Copy-Item -LiteralPath $aab.FullName -Destination $publishedAabPath -Force
 
 $publishedAab = Get-Item -LiteralPath $publishedAabPath
 Write-Host "Signed release AAB ready: $($publishedAab.FullName) ($([math]::Round($publishedAab.Length / 1MB, 2)) MB)"
+
+$nativeLibsPaths = @(
+    (Join-Path $projectRoot 'app\build\intermediates\merged_native_libs\release\mergeReleaseNativeLibs\out\lib'),
+    (Join-Path $env:LOCALAPPDATA 'Alarmpro-build-active\app\intermediates\merged_native_libs\release\mergeReleaseNativeLibs\out\lib')
+)
+$nativeLibsPath = $nativeLibsPaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if ($nativeLibsPath) {
+    $publishedSymbolsPath = Join-Path $releaseDirectory 'native-debug-symbols.zip'
+    Compress-Archive -Path (Join-Path $nativeLibsPath '*') -DestinationPath $publishedSymbolsPath -Force
+    Write-Host "Native debug symbols ready: $publishedSymbolsPath"
+}

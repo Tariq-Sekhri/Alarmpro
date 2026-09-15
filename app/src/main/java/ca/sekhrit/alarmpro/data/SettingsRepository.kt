@@ -12,6 +12,7 @@ class SettingsRepository(context: Context) {
             defaultVibrate = prefs.getBoolean(KEY_DEFAULT_VIBRATE, prefs.getBoolean(KEY_LEGACY_VIBRATION, true)),
             defaultReadLabelAloud = prefs.getBoolean(KEY_DEFAULT_READ_ALOUD, false),
             defaultAlarmSoundUri = prefs.getString(KEY_DEFAULT_ALARM_SOUND, null)?.ifBlank { null },
+            timerSoundUri = prefs.getString(KEY_TIMER_SOUND, null)?.ifBlank { null },
             use24HourFormat = prefs.getBoolean(KEY_24H, false),
             timerSpeechFormat = TimerSpeechFormat.fromStored(prefs.getString(KEY_TIMER_SPEECH, null)),
             timerSpeechTemplate = prefs.getString(KEY_TIMER_SPEECH_TEMPLATE, DEFAULT_TIMER_SPEECH_TEMPLATE)
@@ -68,6 +69,7 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_DEFAULT_VIBRATE, settings.defaultVibrate)
             .putBoolean(KEY_DEFAULT_READ_ALOUD, settings.defaultReadLabelAloud)
             .putString(KEY_DEFAULT_ALARM_SOUND, settings.defaultAlarmSoundUri.orEmpty())
+            .putString(KEY_TIMER_SOUND, settings.timerSoundUri.orEmpty())
             .putBoolean(KEY_24H, settings.use24HourFormat)
             .putString(KEY_TIMER_SPEECH, settings.timerSpeechFormat.name)
             .putString(KEY_TIMER_SPEECH_TEMPLATE, settings.timerSpeechTemplate)
@@ -97,6 +99,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_DEFAULT_VIBRATE = "default_vibrate"
         private const val KEY_DEFAULT_READ_ALOUD = "default_read_aloud"
         private const val KEY_DEFAULT_ALARM_SOUND = "default_alarm_sound"
+        private const val KEY_TIMER_SOUND = "timer_sound"
         private const val KEY_24H = "use_24h"
         private const val KEY_TIMER_SPEECH = "timer_speech_format"
         private const val KEY_TIMER_SPEECH_TEMPLATE = "timer_speech_template"
