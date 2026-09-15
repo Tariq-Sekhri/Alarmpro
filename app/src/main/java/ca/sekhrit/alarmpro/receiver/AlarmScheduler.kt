@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import ca.sekhrit.alarmpro.MainActivity
 import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.SettingsRepository
@@ -144,7 +145,46 @@ class AlarmScheduler(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        setExact(triggerAt, pendingIntent)
+        setAlarmClock(triggerAt, pendingIntent, alarm)
+    }
+
+    /**
+     * Registers user-facing alarms with Android as actual alarm clocks. Besides
+     * preserving exact, idle-safe delivery, this exposes the alarm through
+     * AlarmManager.getNextAlarmClock() and ACTION_NEXT_ALARM_CLOCK_CHANGED so
+     * system UI and automation apps can recognize it as an alarm.
+     */
+    private fun setAlarmClock(
+        triggerAt: Long,
+        pendingIntent: PendingIntent,
+        alarm: Alarm
+    ) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
+            !alarmManager.canScheduleExactAlarms()
+        ) {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAt,
+                pendingIntent
+            )
+            return
+        }
+
+        val showIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(MainActivity.EXTRA_TARGET_TAB, "alarm")
+        }
+        val showPendingIntent = PendingIntent.getActivity(
+            context,
+            alarm.id.hashCode() + SHOW_ALARM_OFFSET,
+            showIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.setAlarmClock(
+            AlarmManager.AlarmClockInfo(triggerAt, showPendingIntent),
+            pendingIntent
+        )
     }
 
     private fun setExact(triggerAt: Long, pendingIntent: PendingIntent) {
@@ -192,5 +232,6 @@ class AlarmScheduler(private val context: Context) {
         const val EXTRA_USE_24H = "USE_24H"
         private const val SNOOZE_OFFSET = 100_000
         private const val UPCOMING_OFFSET = 200_000
+        private const val SHOW_ALARM_OFFSET = 300_000
     }
 }
