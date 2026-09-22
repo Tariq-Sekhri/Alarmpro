@@ -6,6 +6,7 @@ import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.SettingsRepository
 import ca.sekhrit.alarmpro.data.isSnoozeAllowed
 import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
+import ca.sekhrit.alarmpro.data.shouldDeleteOnDismiss
 import ca.sekhrit.alarmpro.receiver.AlarmScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.util.RepeatCalculator
@@ -64,9 +65,13 @@ object AlarmActions {
 
         if (alarm.repeat.type == RepeatType.ONCE) {
             scheduler.cancel(alarmId)
-            repository.saveAlarms(
-                alarms.map { if (it.id == alarmId) it.copy(isEnabled = false, skipUntilEpochDay = null, snoozedUntilEpochMillis = null) else it }
-            )
+            if (alarm.shouldDeleteOnDismiss()) {
+                repository.saveAlarms(alarms.filterNot { it.id == alarmId })
+            } else {
+                repository.saveAlarms(
+                    alarms.map { if (it.id == alarmId) it.copy(isEnabled = false, skipUntilEpochDay = null, snoozedUntilEpochMillis = null) else it }
+                )
+            }
         } else {
             val today = java.time.LocalDate.now().toEpochDay()
             val cleared = alarm.copy(

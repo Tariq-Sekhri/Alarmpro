@@ -55,9 +55,9 @@ object RepeatCalculator {
 
         return when (schedule.type) {
             RepeatType.ONCE -> {
-                val today = LocalDateTime.of(fromDate, time)
-                val from = LocalDateTime.of(fromDate, fromTime)
-                if (today.isAfter(from)) fromDate else fromDate.plusDays(1)
+                // One-time alarms have a real scheduled date. Keeping it on the
+                // schedule prevents the card from inventing a new weekday each time.
+                anchor
             }
             RepeatType.DAILY -> {
                 if (time.isAfter(fromTime)) fromDate else fromDate.plusDays(1)

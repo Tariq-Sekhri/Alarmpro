@@ -44,6 +44,7 @@ class SettingsRepository(context: Context) {
                 TimerControlStyle.SWITCH
             },
             deleteAssistantTimersOnDismiss = prefs.getBoolean(KEY_DELETE_ASSISTANT_TIMERS_ON_DISMISS, false),
+            defaultDeleteOneTimeAlarmsAfterDismiss = prefs.getBoolean(KEY_DEFAULT_DELETE_ONE_TIME_ALARMS_AFTER_DISMISS, true),
             timerSortMode = try {
                 TimerSortMode.valueOf(prefs.getString(KEY_TIMER_SORT_MODE, TimerSortMode.MANUAL.name) ?: TimerSortMode.MANUAL.name)
             } catch (e: Exception) {
@@ -82,6 +83,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_TIME_PICKER_STYLE, settings.timePickerStyle.name)
             .putString(KEY_TIMER_CONTROL_STYLE, settings.timerControlStyle.name)
             .putBoolean(KEY_DELETE_ASSISTANT_TIMERS_ON_DISMISS, settings.deleteAssistantTimersOnDismiss)
+            .putBoolean(KEY_DEFAULT_DELETE_ONE_TIME_ALARMS_AFTER_DISMISS, settings.defaultDeleteOneTimeAlarmsAfterDismiss)
             .putString(KEY_TIMER_SORT_MODE, settings.timerSortMode.name)
             .putBoolean(KEY_ACTIVE_TIMERS_FIRST, settings.activeTimersFirst)
             .putBoolean(KEY_SILENT_NOTIFICATIONS, settings.silentNotifications)
@@ -112,6 +114,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_TIME_PICKER_STYLE = "time_picker_style"
         private const val KEY_TIMER_CONTROL_STYLE = "timer_control_style"
         private const val KEY_DELETE_ASSISTANT_TIMERS_ON_DISMISS = "delete_assistant_timers_on_dismiss"
+        private const val KEY_DEFAULT_DELETE_ONE_TIME_ALARMS_AFTER_DISMISS = "default_delete_one_time_alarms_after_dismiss"
         private const val KEY_TIMER_SORT_MODE = "timer_sort_mode"
         private const val KEY_ACTIVE_TIMERS_FIRST = "active_timers_first"
         private const val KEY_SILENT_NOTIFICATIONS = "silent_notifications"

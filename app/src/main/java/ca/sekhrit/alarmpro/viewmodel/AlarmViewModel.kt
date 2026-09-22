@@ -18,6 +18,8 @@ import ca.sekhrit.alarmpro.data.AppSettings
 
 import ca.sekhrit.alarmpro.data.RepeatSchedule
 
+import ca.sekhrit.alarmpro.data.RepeatType
+
 import ca.sekhrit.alarmpro.data.SettingsRepository
 
 import ca.sekhrit.alarmpro.receiver.AlarmScheduler
@@ -33,6 +35,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 import java.time.LocalTime
+
+import java.time.LocalDateTime
 
 
 
@@ -132,6 +136,17 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
     }
 
+    private fun retargetOneTimeAlarm(alarm: Alarm, now: LocalDateTime = LocalDateTime.now()): Alarm {
+        if (alarm.repeat.type != RepeatType.ONCE) return alarm
+        return alarm.copy(repeat = alarm.repeat.copy(anchorEpochDay = now.toLocalDate().toEpochDay()))
+    }
+
+    private fun normalizeOneTimeAlarm(alarm: Alarm, now: LocalDateTime = LocalDateTime.now()): Alarm {
+        if (alarm.repeat.type != RepeatType.ONCE) return alarm
+        val scheduled = LocalDateTime.of(java.time.LocalDate.ofEpochDay(alarm.repeat.anchorEpochDay), alarm.time)
+        return if (scheduled.isAfter(now)) alarm else retargetOneTimeAlarm(alarm, now)
+    }
+
 
 
     private fun cleanupEmptyGroups() {
@@ -166,6 +181,8 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
         snoozeMinutes: Int?,
 
+        deleteAfterDismiss: Boolean = false,
+
         isEnabled: Boolean = true,
 
         groupId: String? = null,
@@ -174,7 +191,7 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
     ) {
 
-        val newAlarm = Alarm(
+        val newAlarm = normalizeOneTimeAlarm(Alarm(
 
             time = time,
 
@@ -190,13 +207,15 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
             snoozeMinutes = snoozeMinutes,
 
+            deleteAfterDismiss = if (repeat.type == RepeatType.ONCE) deleteAfterDismiss else false,
+
             isEnabled = isEnabled,
 
             groupId = groupId,
 
             soundUri = soundUri
 
-        )
+        ))
 
         persistAlarms(_alarms.value + newAlarm)
 
@@ -220,11 +239,13 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
         }
 
-        persistAlarms(_alarms.value.map { if (it.id == updated.id) updated else it })
+        val normalized = if (updated.isEnabled) normalizeOneTimeAlarm(updated) else updated
 
-        if (updated.isEnabled) {
+        persistAlarms(_alarms.value.map { if (it.id == normalized.id) normalized else it })
 
-            scheduler.schedule(updated)
+        if (normalized.isEnabled) {
+
+            scheduler.schedule(normalized)
 
         }
 
@@ -236,7 +257,11 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleAlarm(alarm: Alarm) {
 
-        val updated = alarm.copy(isEnabled = !alarm.isEnabled)
+        val updated = if (alarm.isEnabled) {
+            alarm.copy(isEnabled = false)
+        } else {
+            retargetOneTimeAlarm(alarm).copy(isEnabled = true)
+        }
 
         persistAlarms(_alarms.value.map { if (it.id == alarm.id) updated else it })
 
@@ -406,7 +431,9 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
         val updatedAlarms = _alarms.value.map { alarm ->
 
-            if (alarm.groupId != groupId) alarm else alarm.copy(isEnabled = enableAll)
+            if (alarm.groupId != groupId) alarm
+            else if (enableAll) retargetOneTimeAlarm(alarm).copy(isEnabled = true)
+            else alarm.copy(isEnabled = false)
 
         }
 
@@ -484,7 +511,9 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
     fun setAlarmsEnabled(alarmIds: Set<String>, enabled: Boolean) {
         if (alarmIds.isEmpty()) return
         val updated = _alarms.value.map { alarm ->
-            if (alarm.id in alarmIds) alarm.copy(isEnabled = enabled) else alarm
+            if (alarm.id !in alarmIds) alarm
+            else if (enabled && !alarm.isEnabled) retargetOneTimeAlarm(alarm).copy(isEnabled = true)
+            else alarm.copy(isEnabled = enabled)
         }
         persistAlarms(updated)
         updated.filter { it.id in alarmIds }.forEach { reschedule(it) }

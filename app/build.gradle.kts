@@ -40,8 +40,8 @@ android {
         applicationId = "ca.sekhrit.alarmpro"
         minSdk = 26
         targetSdk = 36
-        versionCode = ciVersionCode.orNull ?: 37
-        versionName = ciVersionName.orNull ?: "0.7.4"
+        versionCode = ciVersionCode.orNull ?: 38
+        versionName = ciVersionName.orNull ?: "0.8.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

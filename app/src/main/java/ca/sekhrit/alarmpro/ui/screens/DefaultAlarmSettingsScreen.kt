@@ -203,6 +203,14 @@ fun DefaultAlarmSettingsScreen(
                     viewModel.updateSettings(settings.copy(defaultReadLabelAloud = it))
                 }
             )
+            SettingsSwitchRow(
+                title = "Delete one-time alarms after dismissal",
+                subtitle = "Default for new one-time and Google Assistant alarms",
+                checked = settings.defaultDeleteOneTimeAlarmsAfterDismiss,
+                onCheckedChange = {
+                    viewModel.updateSettings(settings.copy(defaultDeleteOneTimeAlarmsAfterDismiss = it))
+                }
+            )
             SettingsValueRow(
                 title = "Alarm speech format",
                 value = "Customize speech text",

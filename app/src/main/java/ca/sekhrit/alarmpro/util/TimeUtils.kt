@@ -74,11 +74,16 @@ object TimeUtils {
         ((totalSeconds + 59) / 60).coerceAtLeast(1)
 
     fun formatStopwatch(ms: Long): String {
-        val totalSeconds = ms / 1000
+        val totalCentiseconds = ms / 10
+        val totalSeconds = totalCentiseconds / 100
         val minutes = totalSeconds / 60
         val seconds = totalSeconds % 60
-        val centiseconds = (ms % 1000) / 10
-        return String.format(Locale.getDefault(), "%02d:%02d.%02d", minutes, seconds, centiseconds)
+        val centiseconds = totalCentiseconds % 100
+        return if (minutes >= 60) {
+            String.format(Locale.getDefault(), "%d:%02d:%02d.%02d", minutes / 60, minutes % 60, seconds, centiseconds)
+        } else {
+            String.format(Locale.getDefault(), "%02d:%02d.%02d", minutes, seconds, centiseconds)
+        }
     }
 
     fun repeatSummary(alarm: Alarm): String = RepeatCalculator.summary(alarm.repeat)

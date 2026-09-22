@@ -82,6 +82,7 @@ class AlarmClockCommandActivity : Activity() {
             readLabelAloud = settings.defaultReadLabelAloud,
             snoozeEnabled = settings.defaultSnoozeEnabled,
             snoozeMinutes = settings.defaultSnoozeMinutes,
+            deleteAfterDismiss = settings.defaultDeleteOneTimeAlarmsAfterDismiss,
             soundUri = settings.defaultAlarmSoundUri
         )
         val repository = AlarmRepository(this)

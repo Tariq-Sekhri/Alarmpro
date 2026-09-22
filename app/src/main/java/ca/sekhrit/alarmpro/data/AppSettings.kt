@@ -40,6 +40,7 @@ data class AppSettings(
     val timePickerStyle: TimePickerStyle = TimePickerStyle.ANALOG,
     val timerControlStyle: TimerControlStyle = TimerControlStyle.SWITCH,
     val deleteAssistantTimersOnDismiss: Boolean = false,
+    val defaultDeleteOneTimeAlarmsAfterDismiss: Boolean = true,
     val timerSortMode: TimerSortMode = TimerSortMode.MANUAL,
     val activeTimersFirst: Boolean = false,
     val silentNotifications: Boolean = false,
@@ -55,3 +56,6 @@ fun Alarm.resolveSnoozeMinutes(settings: AppSettings): Int =
 
 fun Alarm.isSnoozeAllowed(settings: AppSettings): Boolean =
     snoozeEnabled && settings.defaultSnoozeEnabled
+
+fun Alarm.shouldDeleteOnDismiss(): Boolean =
+    repeat.type == RepeatType.ONCE && deleteAfterDismiss

@@ -13,6 +13,7 @@ data class Alarm(
     val readLabelAloud: Boolean = false,
     val snoozeEnabled: Boolean = true,
     val snoozeMinutes: Int? = null,
+    val deleteAfterDismiss: Boolean = false,
     val skipUntilEpochDay: Long? = null,
     val soundUri: String? = null,
     val groupId: String? = null,

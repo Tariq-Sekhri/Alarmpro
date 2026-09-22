@@ -101,6 +101,7 @@ fun AlarmEditScreen(
     var snoozeEnabled by remember(existing?.id) { mutableStateOf(existing?.snoozeEnabled ?: settings.defaultSnoozeEnabled) }
     var useDefaultSnoozeLength by remember(existing?.id) { mutableStateOf(existing?.snoozeMinutes == null) }
     var customSnoozeMinutes by remember(existing?.id) { mutableIntStateOf(existing?.snoozeMinutes ?: settings.defaultSnoozeMinutes) }
+    var deleteAfterDismiss by remember(existing?.id) { mutableStateOf(existing?.deleteAfterDismiss ?: settings.defaultDeleteOneTimeAlarmsAfterDismiss) }
     var selectedGroupId by remember(existing?.id) { mutableStateOf(existing?.groupId) }
     var createNewGroup by remember(existing?.id) { mutableStateOf(false) }
     var newGroupName by remember(existing?.id) { mutableStateOf("") }
@@ -176,6 +177,7 @@ fun AlarmEditScreen(
                 readLabelAloud,
                 snoozeEnabled,
                 snoozeMinutes,
+                deleteAfterDismiss = repeatType == RepeatType.ONCE && deleteAfterDismiss,
                 isEnabled = isActive,
                 groupId = resolvedGroupId,
                 soundUri = resolvedSoundUri
@@ -191,6 +193,7 @@ fun AlarmEditScreen(
                     readLabelAloud = readLabelAloud,
                     snoozeEnabled = snoozeEnabled,
                     snoozeMinutes = snoozeMinutes,
+                    deleteAfterDismiss = repeatType == RepeatType.ONCE && deleteAfterDismiss,
                     groupId = resolvedGroupId,
                     soundUri = resolvedSoundUri,
                     snoozedUntilEpochMillis = null
@@ -500,6 +503,24 @@ fun AlarmEditScreen(
                                 label = { Text("$months months") }
                             )
                         }
+                    }
+                }
+
+                if (repeatType == RepeatType.ONCE) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Delete after dismissal")
+                            Text(
+                                "Remove this one-time alarm after it rings and is dismissed",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = deleteAfterDismiss, onCheckedChange = { deleteAfterDismiss = it })
                     }
                 }
 

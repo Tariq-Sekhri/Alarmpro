@@ -84,6 +84,7 @@ import ca.sekhrit.alarmpro.viewmodel.StopwatchViewModel
 import kotlinx.coroutines.flow.SharedFlow
 import android.content.Intent
 import androidx.compose.runtime.LaunchedEffect
+import java.util.Locale
 
 private data class StopwatchTab(
     val id: String,
@@ -318,11 +319,7 @@ fun StopwatchScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = TimeUtils.formatStopwatch(state.elapsedMs),
-                    style = MaterialTheme.typography.displayMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                StopwatchTimeDisplay(state.elapsedMs)
                 Text(
                     text = "Current Lap: ${TimeUtils.formatStopwatch(currentLapMs)}",
                     style = MaterialTheme.typography.titleMedium,
@@ -496,6 +493,61 @@ fun StopwatchScreen(
         }
     }
     }
+}
+
+@Composable
+private fun StopwatchTimeDisplay(elapsedMs: Long) {
+    val totalCentiseconds = elapsedMs / 10
+    val totalSeconds = totalCentiseconds / 100
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val seconds = totalSeconds % 60
+    val centiseconds = totalCentiseconds % 100
+    val unitColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+
+    Row(
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (hours > 0) {
+            StopwatchTimeUnit("HOUR", "%02d".format(Locale.getDefault(), hours), unitColor)
+            StopwatchTimeSeparator()
+        }
+        StopwatchTimeUnit("MIN", "%02d".format(Locale.getDefault(), minutes), unitColor)
+        StopwatchTimeSeparator()
+        StopwatchTimeUnit("SEC", "%02d".format(Locale.getDefault(), seconds), unitColor)
+        Text(
+            text = ".%02d".format(Locale.getDefault(), centiseconds),
+            style = MaterialTheme.typography.displayMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun StopwatchTimeUnit(label: String, value: String, labelColor: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = labelColor
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.displayMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun StopwatchTimeSeparator() {
+    Text(
+        text = ":",
+        style = MaterialTheme.typography.displayMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(bottom = 1.dp)
+    )
 }
 
 @Composable
