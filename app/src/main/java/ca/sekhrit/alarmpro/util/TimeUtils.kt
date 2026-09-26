@@ -65,6 +65,27 @@ object TimeUtils {
         }
     }
 
+    fun formatAlarmEditCountdown(triggerEpochMillis: Long, nowEpochMillis: Long): String {
+        val remainingMillis = (triggerEpochMillis - nowEpochMillis).coerceAtLeast(0L)
+        if (remainingMillis < 60_000L) return "in less than a minute"
+        val totalMinutes = (remainingMillis + 59_999L) / 60_000L
+
+        val weeks = totalMinutes / (7L * 24L * 60L)
+        val days = totalMinutes / (24L * 60L) % 7L
+        val hours = totalMinutes / 60L % 24L
+        val minutes = totalMinutes % 60L
+        val parts = buildList {
+            if (weeks > 0L) add(pluralize(weeks, "week"))
+            if (days > 0L) add(pluralize(days, "day"))
+            if (hours > 0L) add(pluralize(hours, "hour"))
+            if (weeks == 0L && days == 0L && minutes > 0L) add(pluralize(minutes, "minute"))
+        }
+        val body = if (parts.size <= 1) parts.first() else {
+            parts.dropLast(1).joinToString(", ") + " and " + parts.last()
+        }
+        return "in $body"
+    }
+
     private fun formatSnoozeUnit(value: Int, unit: String): String {
         val label = if (value == 1) unit else "${unit}s"
         return "$value $label"

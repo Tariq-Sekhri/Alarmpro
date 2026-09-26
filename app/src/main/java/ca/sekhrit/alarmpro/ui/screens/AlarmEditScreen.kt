@@ -46,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -73,7 +74,11 @@ import ca.sekhrit.alarmpro.util.RepeatCalculator
 import ca.sekhrit.alarmpro.util.TimeUtils
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.Instant
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,7 +122,9 @@ fun AlarmEditScreen(
     var vibrate by remember(existing?.id) { mutableStateOf(existing?.vibrate ?: settings.defaultVibrate) }
     var readLabelAloud by remember(existing?.id) { mutableStateOf(existing?.readLabelAloud ?: settings.defaultReadLabelAloud) }
     var snoozeEnabled by remember(existing?.id) { mutableStateOf(existing?.snoozeEnabled ?: settings.defaultSnoozeEnabled) }
-    var useDefaultSnoozeLength by remember(existing?.id) { mutableStateOf(existing?.snoozeMinutes == null) }
+    var useDefaultSnoozeLength by remember(existing?.id) {
+        mutableStateOf(existing?.snoozeMinutes?.let { it == settings.defaultSnoozeMinutes } ?: true)
+    }
     var customSnoozeMinutes by remember(existing?.id) { mutableIntStateOf(existing?.snoozeMinutes ?: settings.defaultSnoozeMinutes) }
     var deleteAfterDismiss by remember(existing?.id) { mutableStateOf(existing?.deleteAfterDismiss ?: settings.defaultDeleteOneTimeAlarmsAfterDismiss) }
     var wakeCheckEnabled by remember(existing?.id) { mutableStateOf(existing?.wakeCheckEnabled ?: settings.defaultWakeCheckEnabled) }
@@ -161,18 +168,26 @@ fun AlarmEditScreen(
         } ?: 0
         return today.plusDays(nextOffset.toLong())
     }
-    val previewAlarm = Alarm(time = selectedTime, repeat = previewSchedule, isEnabled = true)
-    val countdownLine = TimeUtils.nextAlarmHeader(listOf(previewAlarm), settings.use24HourFormat)
-        ?.countdownLine ?: "(less than a minute from now)"
-    val nextDate = RepeatCalculator.nextTriggerDate(previewAlarm, LocalDate.now(), LocalTime.now())
-    val timeUntilText = if (nextDate.isAfter(LocalDate.now().plusDays(1))) {
-        "Next · " + nextDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d"))
-    } else {
-        "in " + countdownLine
-            .removePrefix("(")
-            .removeSuffix(")")
-            .removeSuffix(" from now")
+    var previewNowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000L)
+            previewNowMillis = System.currentTimeMillis()
+        }
     }
+    val previewNow = LocalDateTime.ofInstant(Instant.ofEpochMilli(previewNowMillis), ZoneId.systemDefault())
+    val effectivePreviewSchedule = if (!isRepeating &&
+        !LocalDateTime.of(oneTimeDate, selectedTime).isAfter(previewNow)
+    ) {
+        previewSchedule.copy(anchorEpochDay = nextOneTimeDate(selectedDays, previewNow).toEpochDay())
+    } else {
+        previewSchedule
+    }
+    val previewAlarm = Alarm(time = selectedTime, repeat = effectivePreviewSchedule, isEnabled = true)
+    val timeUntilText = TimeUtils.formatAlarmEditCountdown(
+        RepeatCalculator.nextTriggerMillis(previewAlarm, previewNow),
+        previewNowMillis
+    )
 
     val defaultLabelPreview = remember(selectedGroupId, createNewGroup, newGroupName, groups, alarms, existing?.id) {
         val groupLabel = when {
@@ -190,7 +205,9 @@ fun AlarmEditScreen(
     }
 
     fun saveAlarm() {
-        val snoozeMinutes = if (!snoozeEnabled || useDefaultSnoozeLength) null else customSnoozeMinutes
+        val snoozeMinutes = if (!snoozeEnabled || useDefaultSnoozeLength ||
+            customSnoozeMinutes == settings.defaultSnoozeMinutes
+        ) null else customSnoozeMinutes
         val resolvedGroupId = when {
             createNewGroup && newGroupName.isNotBlank() -> viewModel.createGroup(newGroupName).id
             createNewGroup -> null
@@ -600,10 +617,14 @@ fun AlarmEditScreen(
                         value = if (useDefaultSnoozeLength) settings.defaultSnoozeMinutes else customSnoozeMinutes,
                         onValueChange = {
                             customSnoozeMinutes = it
-                            useDefaultSnoozeLength = false
+                            useDefaultSnoozeLength = it == settings.defaultSnoozeMinutes
                         },
-                        onReset = { useDefaultSnoozeLength = true },
-                        resetEnabled = !useDefaultSnoozeLength
+                        onReset = {
+                            customSnoozeMinutes = settings.defaultSnoozeMinutes
+                            useDefaultSnoozeLength = true
+                        },
+                        resetEnabled = !useDefaultSnoozeLength &&
+                            customSnoozeMinutes != settings.defaultSnoozeMinutes
                     )
                 }
 
