@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -47,7 +48,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.Alarm
@@ -56,6 +56,7 @@ import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.TimePickerStyle
 import ca.sekhrit.alarmpro.ui.components.AlarmSoundPickerRow
 import ca.sekhrit.alarmpro.ui.components.DurationPickerDialog
+import ca.sekhrit.alarmpro.ui.components.YearlyDatePickerField
 import ca.sekhrit.alarmpro.ui.components.WheelTimePicker
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
@@ -96,19 +97,30 @@ fun AlarmEditScreen(
     var weekInterval by remember(existing?.id) { mutableIntStateOf(existing?.repeat?.weekInterval ?: 2) }
     var monthInterval by remember(existing?.id) { mutableIntStateOf(existing?.repeat?.monthInterval ?: 1) }
     var dayOfMonth by remember(existing?.id) { mutableIntStateOf(existing?.repeat?.dayOfMonth ?: LocalDate.now().dayOfMonth) }
+    var repeatAnchorDate by remember(existing?.id) {
+        mutableStateOf(
+            LocalDate.ofEpochDay(
+                existing?.repeat?.anchorEpochDay ?: existing?.createdEpochDay ?: LocalDate.now().toEpochDay()
+            )
+        )
+    }
     var vibrate by remember(existing?.id) { mutableStateOf(existing?.vibrate ?: settings.defaultVibrate) }
     var readLabelAloud by remember(existing?.id) { mutableStateOf(existing?.readLabelAloud ?: settings.defaultReadLabelAloud) }
     var snoozeEnabled by remember(existing?.id) { mutableStateOf(existing?.snoozeEnabled ?: settings.defaultSnoozeEnabled) }
     var useDefaultSnoozeLength by remember(existing?.id) { mutableStateOf(existing?.snoozeMinutes == null) }
     var customSnoozeMinutes by remember(existing?.id) { mutableIntStateOf(existing?.snoozeMinutes ?: settings.defaultSnoozeMinutes) }
     var deleteAfterDismiss by remember(existing?.id) { mutableStateOf(existing?.deleteAfterDismiss ?: settings.defaultDeleteOneTimeAlarmsAfterDismiss) }
+    var wakeCheckEnabled by remember(existing?.id) { mutableStateOf(existing?.wakeCheckEnabled ?: settings.defaultWakeCheckEnabled) }
+    var wakeCheckDelayMinutes by remember(existing?.id) { mutableIntStateOf(existing?.wakeCheckDelayMinutes ?: settings.defaultWakeCheckDelayMinutes) }
+    var wakeCheckResponseMinutes by remember(existing?.id) { mutableIntStateOf(existing?.wakeCheckResponseMinutes ?: settings.defaultWakeCheckResponseMinutes) }
     var selectedGroupId by remember(existing?.id) { mutableStateOf(existing?.groupId) }
     var createNewGroup by remember(existing?.id) { mutableStateOf(false) }
     var newGroupName by remember(existing?.id) { mutableStateOf("") }
     var customSoundUri by remember(existing?.id) { mutableStateOf(existing?.soundUri) }
     var showCustomSnoozeDialog by remember { mutableStateOf(false) }
+    var showWakeCheckDelayDialog by remember { mutableStateOf(false) }
+    var showWakeCheckResponseDialog by remember { mutableStateOf(false) }
 
-    val anchorEpochDay = existing?.repeat?.anchorEpochDay ?: existing?.createdEpochDay ?: LocalDate.now().toEpochDay()
     val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
     val dayValues = listOf(7, 1, 2, 3, 4, 5, 6)
     val repeatTypes = listOf(
@@ -117,7 +129,6 @@ fun AlarmEditScreen(
         RepeatType.WEEKLY to "Weekly",
         RepeatType.INTERVAL_WEEKS to "Every N weeks",
         RepeatType.MONTHLY to "Monthly",
-        RepeatType.INTERVAL_MONTHS to "Every N months",
         RepeatType.YEARLY to "Yearly"
     )
 
@@ -134,7 +145,7 @@ fun AlarmEditScreen(
         weekInterval = weekInterval,
         monthInterval = monthInterval,
         dayOfMonth = dayOfMonth,
-        anchorEpochDay = anchorEpochDay
+        anchorEpochDay = repeatAnchorDate.toEpochDay()
     )
     val selectedTime = if (settings.timePickerStyle == TimePickerStyle.ANALOG) {
         LocalTime.of(timePickerState.hour, timePickerState.minute)
@@ -144,6 +155,10 @@ fun AlarmEditScreen(
     val previewAlarm = Alarm(time = selectedTime, repeat = previewSchedule, isEnabled = true)
     val countdownLine = TimeUtils.nextAlarmHeader(listOf(previewAlarm), settings.use24HourFormat)
         ?.countdownLine ?: "(less than a minute from now)"
+    val timeUntilText = "in " + countdownLine
+        .removePrefix("(")
+        .removeSuffix(")")
+        .removeSuffix(" from now")
 
     val defaultLabelPreview = remember(selectedGroupId, createNewGroup, newGroupName, groups, alarms, existing?.id) {
         val groupLabel = when {
@@ -178,6 +193,9 @@ fun AlarmEditScreen(
                 snoozeEnabled,
                 snoozeMinutes,
                 deleteAfterDismiss = repeatType == RepeatType.ONCE && deleteAfterDismiss,
+                wakeCheckEnabled = wakeCheckEnabled,
+                wakeCheckDelayMinutes = wakeCheckDelayMinutes,
+                wakeCheckResponseMinutes = wakeCheckResponseMinutes,
                 isEnabled = isActive,
                 groupId = resolvedGroupId,
                 soundUri = resolvedSoundUri
@@ -194,6 +212,9 @@ fun AlarmEditScreen(
                     snoozeEnabled = snoozeEnabled,
                     snoozeMinutes = snoozeMinutes,
                     deleteAfterDismiss = repeatType == RepeatType.ONCE && deleteAfterDismiss,
+                    wakeCheckEnabled = wakeCheckEnabled,
+                    wakeCheckDelayMinutes = wakeCheckDelayMinutes,
+                    wakeCheckResponseMinutes = wakeCheckResponseMinutes,
                     groupId = resolvedGroupId,
                     soundUri = resolvedSoundUri,
                     snoozedUntilEpochMillis = null
@@ -222,6 +243,33 @@ fun AlarmEditScreen(
         )
     }
 
+    if (showWakeCheckDelayDialog) {
+        DurationPickerDialog(
+            title = "Check after",
+            initialTotalSeconds = wakeCheckDelayMinutes * 60,
+            showLabel = false,
+            showSeconds = false,
+            onDismiss = { showWakeCheckDelayDialog = false },
+            onConfirm = { totalSeconds, _ ->
+                wakeCheckDelayMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)
+                showWakeCheckDelayDialog = false
+            }
+        )
+    }
+    if (showWakeCheckResponseDialog) {
+        DurationPickerDialog(
+            title = "Re-ring after no response",
+            initialTotalSeconds = wakeCheckResponseMinutes * 60,
+            showLabel = false,
+            showSeconds = false,
+            onDismiss = { showWakeCheckResponseDialog = false },
+            onConfirm = { totalSeconds, _ ->
+                wakeCheckResponseMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)
+                showWakeCheckResponseDialog = false
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -242,6 +290,7 @@ fun AlarmEditScreen(
                 actions = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text(if (isActive) "On" else "Off", style = MaterialTheme.typography.bodyMedium)
@@ -280,6 +329,7 @@ fun AlarmEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             Box(
@@ -301,23 +351,129 @@ fun AlarmEditScreen(
                         }
                     )
                 }
+                Text(
+                    text = timeUntilText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(y = (-18).dp)
+                        .padding(end = 20.dp)
+                )
             }
 
+            HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+            Text("Schedule", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
             Text(
-                text = countdownLine,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), CircleShape)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                textAlign = TextAlign.Center,
+                "Choose how often this alarm should repeat.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeatTypes.forEach { (type, name) ->
+                    FilterChip(
+                        selected = repeatType == type,
+                        onClick = { selectRepeatType(type) },
+                        label = { Text(name) }
+                    )
+                }
+            }
+            Text(
+                RepeatCalculator.summary(previewSchedule),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+                if (repeatType == RepeatType.WEEKLY || repeatType == RepeatType.INTERVAL_WEEKS) {
+                    Text("Days", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        dayLetters.forEachIndexed { index, letter ->
+                            val day = dayValues[index]
+                            val selected = day in selectedDays
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(if (selected) ElectricCyan.copy(alpha = 0.25f) else CardSurface)
+                                    .border(
+                                        1.dp,
+                                        if (selected) ElectricCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                        CircleShape
+                                    )
+                                    .clickable {
+                                        if (selected && selectedDays.size == 1) return@clickable
+                                        selectedDays = if (selected) selectedDays - day else selectedDays + day
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(letter)
+                            }
+                        }
+                    }
+                }
+
+                if (repeatType == RepeatType.INTERVAL_WEEKS) {
+                    Text("Every", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(2, 3, 4, 6, 8).forEach { weeks ->
+                            FilterChip(
+                                selected = weekInterval == weeks,
+                                onClick = { weekInterval = weeks },
+                                label = { Text("$weeks weeks") }
+                            )
+                        }
+                    }
+                }
+
+                if (repeatType == RepeatType.MONTHLY) {
+                    Text("Day of month", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(onClick = { dayOfMonth = ((dayOfMonth - 2 + 31) % 31) + 1 }) { Text("-") }
+                        Text("$dayOfMonth", style = MaterialTheme.typography.titleMedium)
+                        OutlinedButton(onClick = { dayOfMonth = (dayOfMonth % 31) + 1 }) { Text("+") }
+                    }
+                    Text(
+                        "If a month doesn't have this day, the alarm runs on that month's last day.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (repeatType == RepeatType.YEARLY) {
+                    Text("Date", style = MaterialTheme.typography.labelLarge)
+                    YearlyDatePickerField(
+                        date = repeatAnchorDate,
+                        onDateSelected = { repeatAnchorDate = it }
+                    )
+                }
+
+                if (repeatType == RepeatType.ONCE) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Delete after dismissal")
+                            Text(
+                                "Remove this one-time alarm after it rings and is dismissed",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = deleteAfterDismiss, onCheckedChange = { deleteAfterDismiss = it })
+                    }
+                }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Label", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
                 OutlinedTextField(
                     value = label,
@@ -415,112 +571,38 @@ fun AlarmEditScreen(
                 }
 
                 HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
-                Text("Schedule", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
-                Text(
-                    "Choose how often this alarm should repeat.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    repeatTypes.forEach { (type, name) ->
-                        FilterChip(
-                            selected = repeatType == type,
-                            onClick = { selectRepeatType(type) },
-                            label = { Text(name) }
+                Text("Check I'm awake", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Ask me to confirm I'm awake")
+                        Text(
+                            "Shows silently after this alarm is dismissed",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Switch(checked = wakeCheckEnabled, onCheckedChange = { wakeCheckEnabled = it })
                 }
-                Text(
-                    RepeatCalculator.summary(previewSchedule),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (repeatType == RepeatType.WEEKLY || repeatType == RepeatType.INTERVAL_WEEKS) {
-                    Text("Days", style = MaterialTheme.typography.labelLarge)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        dayLetters.forEachIndexed { index, letter ->
-                            val day = dayValues[index]
-                            val selected = day in selectedDays
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(if (selected) ElectricCyan.copy(alpha = 0.25f) else CardSurface)
-                                    .border(
-                                        1.dp,
-                                        if (selected) ElectricCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                        CircleShape
-                                    )
-                                    .clickable {
-                                        if (selected && selectedDays.size == 1) return@clickable
-                                        selectedDays = if (selected) selectedDays - day else selectedDays + day
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(letter)
-                            }
-                        }
-                    }
-                }
-
-                if (repeatType == RepeatType.INTERVAL_WEEKS) {
-                    Text("Every", style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(2, 3, 4, 6, 8).forEach { weeks ->
-                            FilterChip(
-                                selected = weekInterval == weeks,
-                                onClick = { weekInterval = weeks },
-                                label = { Text("$weeks weeks") }
-                            )
-                        }
-                    }
-                }
-
-                if (repeatType == RepeatType.MONTHLY || repeatType == RepeatType.INTERVAL_MONTHS) {
-                    Text("Day of month", style = MaterialTheme.typography.labelLarge)
+                if (wakeCheckEnabled) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedButton(onClick = { dayOfMonth = ((dayOfMonth - 2 + 31) % 31) + 1 }) { Text("-") }
-                        Text("$dayOfMonth", style = MaterialTheme.typography.titleMedium)
-                        OutlinedButton(onClick = { dayOfMonth = (dayOfMonth % 31) + 1 }) { Text("+") }
+                        Text("Check after ${TimeUtils.formatSnoozeDuration(wakeCheckDelayMinutes)}")
+                        TextButton(onClick = { showWakeCheckDelayDialog = true }) { Text("Change") }
                     }
-                }
-
-                if (repeatType == RepeatType.INTERVAL_MONTHS) {
-                    Text("Every", style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(2, 3, 4, 6, 12).forEach { months ->
-                            FilterChip(
-                                selected = monthInterval == months,
-                                onClick = { monthInterval = months },
-                                label = { Text("$months months") }
-                            )
-                        }
-                    }
-                }
-
-                if (repeatType == RepeatType.ONCE) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Delete after dismissal")
-                            Text(
-                                "Remove this one-time alarm after it rings and is dismissed",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(checked = deleteAfterDismiss, onCheckedChange = { deleteAfterDismiss = it })
+                        Text("Re-ring after ${TimeUtils.formatSnoozeDuration(wakeCheckResponseMinutes)}")
+                        TextButton(onClick = { showWakeCheckResponseDialog = true }) { Text("Change") }
                     }
                 }
 

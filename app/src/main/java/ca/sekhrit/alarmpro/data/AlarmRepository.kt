@@ -34,6 +34,9 @@ class AlarmRepository(context: Context) {
                     put("snoozeEnabled", alarm.snoozeEnabled)
                     put("snoozeMinutes", alarm.snoozeMinutes ?: -1)
                     put("deleteAfterDismiss", alarm.deleteAfterDismiss)
+                    put("wakeCheckEnabled", alarm.wakeCheckEnabled)
+                    put("wakeCheckDelayMinutes", alarm.wakeCheckDelayMinutes)
+                    put("wakeCheckResponseMinutes", alarm.wakeCheckResponseMinutes)
                     put("snoozedUntilEpochMillis", alarm.snoozedUntilEpochMillis ?: -1L)
                     put("skipUntilEpochDay", alarm.skipUntilEpochDay ?: -1)
                     put("soundUri", alarm.soundUri.orEmpty())
@@ -64,6 +67,9 @@ class AlarmRepository(context: Context) {
                         snoozeEnabled = item.optBoolean("snoozeEnabled", true),
                         snoozeMinutes = item.optInt("snoozeMinutes", -1).let { if (it < 0) null else it },
                         deleteAfterDismiss = item.optBoolean("deleteAfterDismiss", false),
+                        wakeCheckEnabled = item.optBoolean("wakeCheckEnabled", false),
+                        wakeCheckDelayMinutes = item.optInt("wakeCheckDelayMinutes", 10).coerceAtLeast(1),
+                        wakeCheckResponseMinutes = item.optInt("wakeCheckResponseMinutes", 5).coerceAtLeast(1),
                         snoozedUntilEpochMillis = item.optLong("snoozedUntilEpochMillis", -1L).let { if (it < 0L) null else it },
                         skipUntilEpochDay = item.optLong("skipUntilEpochDay", -1).let { if (it < 0) null else it },
                         soundUri = item.optString("soundUri", "").ifBlank { null },

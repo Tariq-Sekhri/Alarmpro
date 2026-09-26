@@ -183,6 +183,12 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
         deleteAfterDismiss: Boolean = false,
 
+        wakeCheckEnabled: Boolean = false,
+
+        wakeCheckDelayMinutes: Int = 10,
+
+        wakeCheckResponseMinutes: Int = 5,
+
         isEnabled: Boolean = true,
 
         groupId: String? = null,
@@ -208,6 +214,12 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
             snoozeMinutes = snoozeMinutes,
 
             deleteAfterDismiss = if (repeat.type == RepeatType.ONCE) deleteAfterDismiss else false,
+
+            wakeCheckEnabled = wakeCheckEnabled,
+
+            wakeCheckDelayMinutes = wakeCheckDelayMinutes.coerceAtLeast(1),
+
+            wakeCheckResponseMinutes = wakeCheckResponseMinutes.coerceAtLeast(1),
 
             isEnabled = isEnabled,
 

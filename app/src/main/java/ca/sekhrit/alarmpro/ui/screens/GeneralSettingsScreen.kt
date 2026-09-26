@@ -41,6 +41,7 @@ import ca.sekhrit.alarmpro.ui.components.SettingsOptionDialog
 import ca.sekhrit.alarmpro.ui.components.SettingsSwitchRow
 import ca.sekhrit.alarmpro.ui.components.SettingsValueRow
 import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
+import ca.sekhrit.alarmpro.viewmodel.StopwatchViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -86,27 +87,6 @@ fun GeneralSettingsScreen(
         }
     }
 
-    val exportNotesLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri ->
-        if (uri != null) {
-            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(settings.notesText.toByteArray(Charsets.UTF_8))
-                    }
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        Toast.makeText(context, "Notes exported", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        Toast.makeText(context, "Notes export failed", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        }
-    }
-
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -116,6 +96,7 @@ fun GeneralSettingsScreen(
                 if (success) {
                     viewModel.refreshFromStorage()
                     TimerViewModel.instance()?.syncFromStorage()
+                    StopwatchViewModel.syncAllFromStorage()
                     Toast.makeText(context, "Import successful", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(context, "Import failed", Toast.LENGTH_SHORT).show()
@@ -257,22 +238,16 @@ fun GeneralSettingsScreen(
 
             SettingsCategoryHeader("Backup & Restore")
             SettingsValueRow(
-                title = "Export Data",
+                title = "Export",
                 value = "",
                 onClick = { exportLauncher.launch("alarmpro_backup.json") }
             )
-            if (settings.notesEnabled) {
-                SettingsValueRow(
-                    title = "Export Notes",
-                    value = "",
-                    onClick = { exportNotesLauncher.launch("alarmpro_notes.txt") }
-                )
-            }
             SettingsValueRow(
-                title = "Import Data",
+                title = "Import",
                 value = "",
                 onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
             )
         }
     }
 }
+

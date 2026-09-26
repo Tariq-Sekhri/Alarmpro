@@ -57,6 +57,27 @@ class AlarmReceiver : BroadcastReceiver() {
                 AlarmRingActivity.notifyRingingStopped(context)
                 TimerViewModel.instance()?.syncFromStorage()
             }
+            ACTION_WAKE_CHECK -> {
+                val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
+                val alarm = AlarmRepository(context).loadAlarms().find { it.id == alarmId && it.isEnabled } ?: return
+                WakeCheckScheduler(context).scheduleTimeout(alarmId, alarm.wakeCheckResponseMinutes)
+                val showingOverlay = WakeCheckOverlay.showIfDisplayIsAwake(context, alarmId)
+                if (!showingOverlay) {
+                    NotificationHelper.showWakeCheckNotification(context, alarmId)
+                    launchRingingActivity(
+                        context = context,
+                        ringType = AlarmRingActivity.TYPE_WAKE_CHECK,
+                        alarmId = alarmId,
+                        label = alarm.label
+                    )
+                }
+            }
+            ACTION_WAKE_CHECK_TIMEOUT -> {
+                val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID) ?: return
+                WakeCheckScheduler(context).cancel(alarmId)
+                WakeCheckOverlay.dismiss(alarmId)
+                handleAlarm(context, Intent().putExtra(AlarmScheduler.EXTRA_ALARM_ID, alarmId))
+            }
         }
     }
 
@@ -277,5 +298,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val ACTION_CANCEL_ALARM = "ca.sekhrit.alarmpro.CANCEL_ALARM"
         const val ACTION_SKIP_ALARM = "ca.sekhrit.alarmpro.SKIP_ALARM"
         const val ACTION_DISMISS_TIMER = "ca.sekhrit.alarmpro.DISMISS_TIMER"
+        const val ACTION_WAKE_CHECK = "ca.sekhrit.alarmpro.WAKE_CHECK"
+        const val ACTION_WAKE_CHECK_TIMEOUT = "ca.sekhrit.alarmpro.WAKE_CHECK_TIMEOUT"
     }
 }

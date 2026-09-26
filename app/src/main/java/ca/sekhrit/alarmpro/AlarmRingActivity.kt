@@ -49,6 +49,7 @@ import ca.sekhrit.alarmpro.data.TimerRepository
 import ca.sekhrit.alarmpro.domain.AlarmActions
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.receiver.TimerScheduler
+import ca.sekhrit.alarmpro.receiver.WakeCheckScheduler
 import ca.sekhrit.alarmpro.service.AlarmRingingService
 import ca.sekhrit.alarmpro.ui.theme.AlarmProTheme
 import ca.sekhrit.alarmpro.util.AlarmSoundUtils
@@ -105,6 +106,21 @@ class AlarmRingActivity : ComponentActivity() {
         val label = intent.getStringExtra(EXTRA_LABEL).orEmpty()
         val snoozeAllowed = intent.getBooleanExtra(EXTRA_SNOOZE_ALLOWED, true)
         val settings = SettingsRepository(this).load()
+
+        if (ringType == TYPE_WAKE_CHECK) {
+            setContent {
+                AlarmProTheme {
+                    WakeCheckScreen(
+                        onConfirm = {
+                            WakeCheckScheduler(this@AlarmRingActivity).cancel(alarmId)
+                            AlarmActions.dismiss(this@AlarmRingActivity, alarmId, startWakeCheck = false)
+                            finish()
+                        }
+                    )
+                }
+            }
+            return
+        }
 
         // Alarm/timer effects live in AlarmRingingService so they remain reliable
         // when Android displays only a heads-up notification. Preview audio is
@@ -242,6 +258,7 @@ class AlarmRingActivity : ComponentActivity() {
         const val TYPE_ALARM = "alarm"
         const val TYPE_TIMER = "timer"
         const val TYPE_PREVIEW = "preview"
+        const val TYPE_WAKE_CHECK = "wake_check"
         private const val ACTION_RINGING_STOPPED =
             "ca.sekhrit.alarmpro.action.RINGING_STOPPED"
 
@@ -250,6 +267,26 @@ class AlarmRingActivity : ComponentActivity() {
                 Intent(ACTION_RINGING_STOPPED).setPackage(context.packageName)
             )
         }
+    }
+}
+
+@Composable
+private fun WakeCheckScreen(onConfirm: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(RingBackground)
+            .statusBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        RingActionButton(
+            text = "I'M AWAKE",
+            onClick = onConfirm,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp)
+                .height(104.dp)
+        )
     }
 }
 

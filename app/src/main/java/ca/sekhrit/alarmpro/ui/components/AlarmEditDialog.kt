@@ -69,6 +69,13 @@ fun AlarmEditDialog(
     var weekInterval by remember(alarm?.id) { mutableIntStateOf(alarm?.repeat?.weekInterval ?: 2) }
     var monthInterval by remember(alarm?.id) { mutableIntStateOf(alarm?.repeat?.monthInterval ?: 1) }
     var dayOfMonth by remember(alarm?.id) { mutableIntStateOf(alarm?.repeat?.dayOfMonth ?: LocalDate.now().dayOfMonth) }
+    var repeatAnchorDate by remember(alarm?.id) {
+        mutableStateOf(
+            LocalDate.ofEpochDay(
+                alarm?.repeat?.anchorEpochDay ?: alarm?.createdEpochDay ?: LocalDate.now().toEpochDay()
+            )
+        )
+    }
     var vibrate by remember(alarm?.id) { mutableStateOf(alarm?.vibrate ?: defaultVibrate) }
     var readLabelAloud by remember(alarm?.id) { mutableStateOf(alarm?.readLabelAloud ?: defaultReadLabelAloud) }
     var snoozeEnabled by remember(alarm?.id) { mutableStateOf(alarm?.snoozeEnabled ?: defaultSnoozeEnabled) }
@@ -78,7 +85,6 @@ fun AlarmEditDialog(
     var showCustomSnoozeDialog by remember { mutableStateOf(false) }
     val isCustomSnooze = !useDefaultSnoozeLength && customSnoozeMinutes !in snoozeLengthOptions
 
-    val anchorEpochDay = alarm?.repeat?.anchorEpochDay ?: alarm?.createdEpochDay ?: LocalDate.now().toEpochDay()
     val dayOptions = listOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
     val repeatTypes = listOf(
         RepeatType.ONCE to "Once",
@@ -86,7 +92,6 @@ fun AlarmEditDialog(
         RepeatType.WEEKLY to "Weekly",
         RepeatType.INTERVAL_WEEKS to "Every N weeks",
         RepeatType.MONTHLY to "Monthly",
-        RepeatType.INTERVAL_MONTHS to "Every N months",
         RepeatType.YEARLY to "Yearly"
     )
 
@@ -96,7 +101,7 @@ fun AlarmEditDialog(
         weekInterval = weekInterval,
         monthInterval = monthInterval,
         dayOfMonth = dayOfMonth,
-        anchorEpochDay = anchorEpochDay
+        anchorEpochDay = repeatAnchorDate.toEpochDay()
     )
 
     if (showCustomSnoozeDialog) {
@@ -190,7 +195,7 @@ fun AlarmEditDialog(
                     }
                 }
 
-                if (repeatType == RepeatType.MONTHLY || repeatType == RepeatType.INTERVAL_MONTHS) {
+                if (repeatType == RepeatType.MONTHLY) {
                     Text("Day of month", style = MaterialTheme.typography.titleSmall)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -205,21 +210,19 @@ fun AlarmEditDialog(
                             Text("+")
                         }
                     }
+                    Text(
+                        "If a month doesn't have this day, the alarm runs on that month's last day.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
-                if (repeatType == RepeatType.INTERVAL_MONTHS) {
-                    Text("Month interval", style = MaterialTheme.typography.titleSmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(1, 2, 3, 4, 6, 12).forEach { months ->
-                            FilterChip(
-                                selected = monthInterval == months,
-                                onClick = { monthInterval = months },
-                                label = {
-                                    Text(if (months == 1) "1 mo" else "${months} mo")
-                                }
-                            )
-                        }
-                    }
+                if (repeatType == RepeatType.YEARLY) {
+                    Text("Date", style = MaterialTheme.typography.titleSmall)
+                    YearlyDatePickerField(
+                        date = repeatAnchorDate,
+                        onDateSelected = { repeatAnchorDate = it }
+                    )
                 }
 
                 Row(

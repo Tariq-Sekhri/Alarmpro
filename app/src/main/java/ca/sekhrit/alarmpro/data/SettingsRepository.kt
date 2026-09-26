@@ -45,6 +45,9 @@ class SettingsRepository(context: Context) {
             },
             deleteAssistantTimersOnDismiss = prefs.getBoolean(KEY_DELETE_ASSISTANT_TIMERS_ON_DISMISS, false),
             defaultDeleteOneTimeAlarmsAfterDismiss = prefs.getBoolean(KEY_DEFAULT_DELETE_ONE_TIME_ALARMS_AFTER_DISMISS, true),
+            defaultWakeCheckEnabled = prefs.getBoolean(KEY_DEFAULT_WAKE_CHECK_ENABLED, false),
+            defaultWakeCheckDelayMinutes = prefs.getInt(KEY_DEFAULT_WAKE_CHECK_DELAY, 10).coerceAtLeast(1),
+            defaultWakeCheckResponseMinutes = prefs.getInt(KEY_DEFAULT_WAKE_CHECK_RESPONSE, 5).coerceAtLeast(1),
             timerSortMode = try {
                 TimerSortMode.valueOf(prefs.getString(KEY_TIMER_SORT_MODE, TimerSortMode.MANUAL.name) ?: TimerSortMode.MANUAL.name)
             } catch (e: Exception) {
@@ -84,6 +87,9 @@ class SettingsRepository(context: Context) {
             .putString(KEY_TIMER_CONTROL_STYLE, settings.timerControlStyle.name)
             .putBoolean(KEY_DELETE_ASSISTANT_TIMERS_ON_DISMISS, settings.deleteAssistantTimersOnDismiss)
             .putBoolean(KEY_DEFAULT_DELETE_ONE_TIME_ALARMS_AFTER_DISMISS, settings.defaultDeleteOneTimeAlarmsAfterDismiss)
+            .putBoolean(KEY_DEFAULT_WAKE_CHECK_ENABLED, settings.defaultWakeCheckEnabled)
+            .putInt(KEY_DEFAULT_WAKE_CHECK_DELAY, settings.defaultWakeCheckDelayMinutes)
+            .putInt(KEY_DEFAULT_WAKE_CHECK_RESPONSE, settings.defaultWakeCheckResponseMinutes)
             .putString(KEY_TIMER_SORT_MODE, settings.timerSortMode.name)
             .putBoolean(KEY_ACTIVE_TIMERS_FIRST, settings.activeTimersFirst)
             .putBoolean(KEY_SILENT_NOTIFICATIONS, settings.silentNotifications)
@@ -115,6 +121,9 @@ class SettingsRepository(context: Context) {
         private const val KEY_TIMER_CONTROL_STYLE = "timer_control_style"
         private const val KEY_DELETE_ASSISTANT_TIMERS_ON_DISMISS = "delete_assistant_timers_on_dismiss"
         private const val KEY_DEFAULT_DELETE_ONE_TIME_ALARMS_AFTER_DISMISS = "default_delete_one_time_alarms_after_dismiss"
+        private const val KEY_DEFAULT_WAKE_CHECK_ENABLED = "default_wake_check_enabled"
+        private const val KEY_DEFAULT_WAKE_CHECK_DELAY = "default_wake_check_delay_minutes"
+        private const val KEY_DEFAULT_WAKE_CHECK_RESPONSE = "default_wake_check_response_minutes"
         private const val KEY_TIMER_SORT_MODE = "timer_sort_mode"
         private const val KEY_ACTIVE_TIMERS_FIRST = "active_timers_first"
         private const val KEY_SILENT_NOTIFICATIONS = "silent_notifications"

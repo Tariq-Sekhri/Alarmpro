@@ -293,5 +293,9 @@ class StopwatchViewModel(application: Application) : AndroidViewModel(applicatio
         private val instances = ConcurrentHashMap<String, WeakReference<StopwatchViewModel>>()
 
         fun instance(id: String): StopwatchViewModel? = instances[id]?.get()
+
+        fun syncAllFromStorage() {
+            instances.values.mapNotNull { it.get() }.forEach { it.syncFromStorage() }
+        }
     }
 }

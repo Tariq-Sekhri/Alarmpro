@@ -53,6 +53,8 @@ fun DefaultAlarmSettingsScreen(
     var pendingDefaultSoundUri by remember { mutableStateOf<String?>(null) }
     var showApplySoundDialog by remember { mutableStateOf(false) }
     var showSnoozePickerDialog by remember { mutableStateOf(false) }
+    var showWakeCheckDelayDialog by remember { mutableStateOf(false) }
+    var showWakeCheckResponseDialog by remember { mutableStateOf(false) }
 
     val defaultSoundTitle = AlarmSoundUtils.getTitle(
         context,
@@ -110,6 +112,32 @@ fun DefaultAlarmSettingsScreen(
                     )
                 )
                 showSnoozePickerDialog = false
+            }
+        )
+    }
+    if (showWakeCheckDelayDialog) {
+        DurationPickerDialog(
+            title = "Check after",
+            initialTotalSeconds = settings.defaultWakeCheckDelayMinutes * 60,
+            showLabel = false,
+            showSeconds = false,
+            onDismiss = { showWakeCheckDelayDialog = false },
+            onConfirm = { totalSeconds, _ ->
+                viewModel.updateSettings(settings.copy(defaultWakeCheckDelayMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)))
+                showWakeCheckDelayDialog = false
+            }
+        )
+    }
+    if (showWakeCheckResponseDialog) {
+        DurationPickerDialog(
+            title = "Re-ring after no response",
+            initialTotalSeconds = settings.defaultWakeCheckResponseMinutes * 60,
+            showLabel = false,
+            showSeconds = false,
+            onDismiss = { showWakeCheckResponseDialog = false },
+            onConfirm = { totalSeconds, _ ->
+                viewModel.updateSettings(settings.copy(defaultWakeCheckResponseMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)))
+                showWakeCheckResponseDialog = false
             }
         )
     }
@@ -211,6 +239,26 @@ fun DefaultAlarmSettingsScreen(
                     viewModel.updateSettings(settings.copy(defaultDeleteOneTimeAlarmsAfterDismiss = it))
                 }
             )
+            SettingsSwitchRow(
+                title = "Check I'm awake",
+                subtitle = "Default for new alarms; asks for a silent confirmation after dismissal",
+                checked = settings.defaultWakeCheckEnabled,
+                onCheckedChange = {
+                    viewModel.updateSettings(settings.copy(defaultWakeCheckEnabled = it))
+                }
+            )
+            if (settings.defaultWakeCheckEnabled) {
+                SettingsValueRow(
+                    title = "Check after dismissal",
+                    value = TimeUtils.formatSnoozeDuration(settings.defaultWakeCheckDelayMinutes),
+                    onClick = { showWakeCheckDelayDialog = true }
+                )
+                SettingsValueRow(
+                    title = "Re-ring if no response",
+                    value = TimeUtils.formatSnoozeDuration(settings.defaultWakeCheckResponseMinutes),
+                    onClick = { showWakeCheckResponseDialog = true }
+                )
+            }
             SettingsValueRow(
                 title = "Alarm speech format",
                 value = "Customize speech text",

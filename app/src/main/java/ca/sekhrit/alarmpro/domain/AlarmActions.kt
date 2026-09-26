@@ -9,6 +9,7 @@ import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
 import ca.sekhrit.alarmpro.data.shouldDeleteOnDismiss
 import ca.sekhrit.alarmpro.receiver.AlarmScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
+import ca.sekhrit.alarmpro.receiver.WakeCheckScheduler
 import ca.sekhrit.alarmpro.util.RepeatCalculator
 
 object AlarmActions {
@@ -48,7 +49,7 @@ object AlarmActions {
         NotificationHelper.cancelUpcomingNotification(context, alarmId)
     }
 
-    fun dismiss(context: Context, alarmId: String) {
+    fun dismiss(context: Context, alarmId: String, startWakeCheck: Boolean = true) {
         val repository = AlarmRepository(context)
         val scheduler = AlarmScheduler(context)
         val alarms = repository.loadAlarms()
@@ -62,6 +63,15 @@ object AlarmActions {
         }
 
         scheduler.cancelSnooze(alarmId)
+
+        if (startWakeCheck && alarm.wakeCheckEnabled) {
+            scheduler.cancelRegular(alarmId)
+            WakeCheckScheduler(context).scheduleCheck(alarm)
+            if (alarm.repeat.type != RepeatType.ONCE) scheduler.schedule(alarm)
+            NotificationHelper.cancelAlarmNotification(context, alarmId)
+            NotificationHelper.cancelUpcomingNotification(context, alarmId)
+            return
+        }
 
         if (alarm.repeat.type == RepeatType.ONCE) {
             scheduler.cancel(alarmId)

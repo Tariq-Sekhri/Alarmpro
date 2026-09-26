@@ -35,6 +35,7 @@ object NotificationHelper {
     // v3 restores high-importance delivery for existing installs whose older
     // channel state can no longer be raised programmatically.
     private const val ALARM_CHANNEL = "alarm_channel_v3"
+    private const val WAKE_CHECK_CHANNEL = "wake_check_channel_v1"
     private const val UPCOMING_CHANNEL = "upcoming_alarm_channel"
     // v4 also restores full-screen eligibility on upgraded physical devices.
     private const val TIMER_CHANNEL = "timer_channel_v4"
@@ -159,6 +160,42 @@ object NotificationHelper {
             alarmNotificationId(alarmId),
             buildAlarmNotification(context, alarmId, hour, minute, label, snoozeAllowed, snoozeMinutes)
         )
+    }
+
+    /**
+     * Wake checks deliberately use a silent, high-priority full-screen
+     * notification. This gives the check the same locked-screen and
+     * background-app delivery path as an alarm without making any sound or
+     * vibrating.
+     */
+    fun showWakeCheckNotification(context: Context, alarmId: String) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        ensureWakeCheckChannel(notificationManager)
+
+        val ringIntent = Intent(context, AlarmRingActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(AlarmRingActivity.EXTRA_RING_TYPE, AlarmRingActivity.TYPE_WAKE_CHECK)
+            putExtra(AlarmRingActivity.EXTRA_ALARM_ID, alarmId)
+        }
+        val pendingIntent = ringingActivityPendingIntent(
+            context = context,
+            requestCode = wakeCheckNotificationId(alarmId),
+            intent = ringIntent
+        )
+        val notification = NotificationCompat.Builder(context, WAKE_CHECK_CHANNEL)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Check I'm awake")
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setFullScreenIntent(pendingIntent, true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        notifySafely(context, notificationManager, wakeCheckNotificationId(alarmId), notification)
     }
 
     fun showUpcomingAlarmNotification(
@@ -574,7 +611,15 @@ object NotificationHelper {
         notificationManager.cancel(alarmId.hashCode())
     }
 
+    fun cancelWakeCheckNotification(context: Context, alarmId: String) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(wakeCheckNotificationId(alarmId))
+    }
+
     fun alarmNotificationId(alarmId: String): Int = alarmId.hashCode()
+
+    private fun wakeCheckNotificationId(alarmId: String): Int = alarmId.hashCode() + 40_000
 
     fun cancelTimerNotification(context: Context, timerId: String) {
         val notificationManager =
@@ -587,25 +632,25 @@ object NotificationHelper {
         requestCode: Int,
         intent: Intent
     ) {
-        try {
-            context.startActivity(intent)
-            return
-        } catch (_: Exception) {
-        }
-
         val pendingIntent = ringingActivityPendingIntent(context, requestCode, intent)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            pendingIntent.send(
-                context,
-                0,
-                null,
-                null,
-                null,
-                null,
-                backgroundActivityOptions(forCreator = false)
-            )
-        } else {
-            pendingIntent.send()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                pendingIntent.send(
+                    context,
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    backgroundActivityOptions(forCreator = false)
+                )
+            } else {
+                pendingIntent.send()
+            }
+        } catch (_: PendingIntent.CanceledException) {
+            // The activity intent is freshly created above, but retain a direct
+            // launch as a best-effort fallback for a canceled pending intent.
+            context.startActivity(intent)
         }
     }
 
@@ -753,6 +798,20 @@ object NotificationHelper {
             enableVibration(true)
             setSound(null, null)
             setBypassDnd(true)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+        }
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    private fun ensureWakeCheckChannel(notificationManager: NotificationManager) {
+        val channel = NotificationChannel(
+            WAKE_CHECK_CHANNEL,
+            "Wake checks",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Silent full-screen check-in after an alarm is dismissed"
+            enableVibration(false)
+            setSound(null, null)
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         }
         notificationManager.createNotificationChannel(channel)

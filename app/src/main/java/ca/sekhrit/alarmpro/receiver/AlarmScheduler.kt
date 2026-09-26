@@ -56,6 +56,7 @@ class AlarmScheduler(private val context: Context) {
         cancelRequestCode(alarmId.hashCode(), ACTION_ALARM)
         cancelRequestCode(alarmId.hashCode() + SNOOZE_OFFSET, ACTION_ALARM)
         cancelRequestCode(alarmId.hashCode() + UPCOMING_OFFSET, ACTION_UPCOMING_ALARM)
+        WakeCheckScheduler(context).cancel(alarmId)
         NotificationHelper.cancelUpcomingNotification(context, alarmId)
     }
 

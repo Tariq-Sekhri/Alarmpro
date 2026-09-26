@@ -26,10 +26,27 @@ fun RequestAppPermissions() {
             dndAccessLauncher.launch(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
         }
     }
-    val fullScreenLauncher = rememberLauncherForActivityResult(
+    val overlayLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         requestDndAccess()
+    }
+    val requestOverlayAccess = {
+        if (!Settings.canDrawOverlays(context)) {
+            overlayLauncher.launch(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                )
+            )
+        } else {
+            requestDndAccess()
+        }
+    }
+    val fullScreenLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        requestOverlayAccess()
     }
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -47,7 +64,7 @@ fun RequestAppPermissions() {
                 return@rememberLauncherForActivityResult
             }
         }
-        requestDndAccess()
+        requestOverlayAccess()
     }
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -73,7 +90,7 @@ fun RequestAppPermissions() {
                 return@rememberLauncherForActivityResult
             }
         }
-        requestDndAccess()
+        requestOverlayAccess()
     }
 
     LaunchedEffect(Unit) {
@@ -106,6 +123,6 @@ fun RequestAppPermissions() {
                 return@LaunchedEffect
             }
         }
-        requestDndAccess()
+        requestOverlayAccess()
     }
 }
