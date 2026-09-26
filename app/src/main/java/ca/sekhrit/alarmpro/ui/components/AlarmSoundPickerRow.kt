@@ -32,6 +32,7 @@ fun AlarmSoundPickerRow(
     pickerUri: Uri?,
     onSoundPicked: (Uri?) -> Unit,
     modifier: Modifier = Modifier,
+    buttonTextPrefix: String? = null,
     title: String = "Choose alarm sound",
     text: String = "Choose a system ringtone or select any audio file on your device.",
     contentDescription: String = "Change alarm sound",
@@ -101,7 +102,12 @@ fun AlarmSoundPickerRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(soundName, modifier = Modifier.weight(1f))
+            Text(
+                text = listOfNotNull(buttonTextPrefix, soundName).joinToString(" "),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = contentDescription

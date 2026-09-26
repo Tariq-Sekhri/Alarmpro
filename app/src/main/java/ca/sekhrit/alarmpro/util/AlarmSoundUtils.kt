@@ -33,13 +33,33 @@ object AlarmSoundUtils {
 
     fun getTitle(context: Context, uri: Uri?): String {
         if (uri == null) return "System default"
-        return try {
+        val documentName = documentDisplayName(context, uri)
+        if (!documentName.isNullOrBlank()) return readableFileName(documentName)
+
+        val ringtoneTitle = try {
             RingtoneManager.getRingtone(context, uri)?.getTitle(context)
-                ?: documentDisplayName(context, uri)
-                ?: "Custom sound"
         } catch (_: Exception) {
-            documentDisplayName(context, uri) ?: "Custom sound"
+            null
         }
+        if (!ringtoneTitle.isNullOrBlank() && '/' !in ringtoneTitle && ':' !in ringtoneTitle) {
+            return ringtoneTitle
+        }
+
+        val uriName = uri.lastPathSegment
+            ?.substringAfterLast('/')
+            ?.substringAfterLast(':')
+            ?.takeIf { it.isNotBlank() }
+        return uriName?.let(::readableFileName) ?: ringtoneTitle ?: "Custom sound"
+    }
+
+    private fun readableFileName(name: String): String {
+        val withoutExtension = name.substringBeforeLast('.', name)
+        return withoutExtension
+            .replace(Regex("[_-]+"), " ")
+            .trim()
+            .split(Regex("\\s+"))
+            .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
+            .ifBlank { "Custom sound" }
     }
 
     private fun documentDisplayName(context: Context, uri: Uri): String? {

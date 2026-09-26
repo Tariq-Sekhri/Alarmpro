@@ -11,6 +11,8 @@ import ca.sekhrit.alarmpro.receiver.AlarmScheduler
 import ca.sekhrit.alarmpro.receiver.NotificationHelper
 import ca.sekhrit.alarmpro.receiver.WakeCheckScheduler
 import ca.sekhrit.alarmpro.util.RepeatCalculator
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 object AlarmActions {
     fun cancel(context: Context, alarmId: String) {
@@ -75,7 +77,32 @@ object AlarmActions {
 
         if (alarm.repeat.type == RepeatType.ONCE) {
             scheduler.cancel(alarmId)
-            if (alarm.shouldDeleteOnDismiss()) {
+            val scheduledDate = LocalDate.ofEpochDay(alarm.repeat.anchorEpochDay)
+            val remainingDays = alarm.repeat.daysOfWeek - scheduledDate.dayOfWeek.value
+            val now = LocalDateTime.now()
+            val nextDate = if (alarm.deleteAfterDismiss && remainingDays.isNotEmpty()) {
+                (0..7)
+                    .map { now.toLocalDate().plusDays(it.toLong()) }
+                    .firstOrNull { date ->
+                        date.dayOfWeek.value in remainingDays &&
+                            (date.isAfter(now.toLocalDate()) || alarm.time.isAfter(now.toLocalTime()))
+                    }
+            } else {
+                null
+            }
+
+            if (nextDate != null) {
+                val updated = alarm.copy(
+                    repeat = alarm.repeat.copy(
+                        daysOfWeek = remainingDays,
+                        anchorEpochDay = nextDate.toEpochDay()
+                    ),
+                    skipUntilEpochDay = null,
+                    snoozedUntilEpochMillis = null
+                )
+                repository.saveAlarms(alarms.map { if (it.id == alarmId) updated else it })
+                scheduler.schedule(updated)
+            } else if (alarm.shouldDeleteOnDismiss()) {
                 repository.saveAlarms(alarms.filterNot { it.id == alarmId })
             } else {
                 repository.saveAlarms(

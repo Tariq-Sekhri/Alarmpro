@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalTime
 
 import java.time.LocalDateTime
+import java.time.LocalDate
 
 
 
@@ -138,12 +139,23 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun retargetOneTimeAlarm(alarm: Alarm, now: LocalDateTime = LocalDateTime.now()): Alarm {
         if (alarm.repeat.type != RepeatType.ONCE) return alarm
-        return alarm.copy(repeat = alarm.repeat.copy(anchorEpochDay = now.toLocalDate().toEpochDay()))
+        val today = now.toLocalDate()
+        val nextDate = if (alarm.repeat.daysOfWeek.isEmpty()) {
+            today
+        } else {
+            (0..7)
+                .map { today.plusDays(it.toLong()) }
+                .firstOrNull { date ->
+                    date.dayOfWeek.value in alarm.repeat.daysOfWeek &&
+                        (date.isAfter(today) || alarm.time.isAfter(now.toLocalTime()))
+                } ?: today
+        }
+        return alarm.copy(repeat = alarm.repeat.copy(anchorEpochDay = nextDate.toEpochDay()))
     }
 
     private fun normalizeOneTimeAlarm(alarm: Alarm, now: LocalDateTime = LocalDateTime.now()): Alarm {
         if (alarm.repeat.type != RepeatType.ONCE) return alarm
-        val scheduled = LocalDateTime.of(java.time.LocalDate.ofEpochDay(alarm.repeat.anchorEpochDay), alarm.time)
+        val scheduled = LocalDateTime.of(LocalDate.ofEpochDay(alarm.repeat.anchorEpochDay), alarm.time)
         return if (scheduled.isAfter(now)) alarm else retargetOneTimeAlarm(alarm, now)
     }
 

@@ -7,22 +7,23 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +49,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ca.sekhrit.alarmpro.data.Alarm
@@ -69,7 +72,7 @@ import ca.sekhrit.alarmpro.viewmodel.AlarmViewModel
 import java.time.LocalDate
 import java.time.LocalTime
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmEditScreen(
     alarmId: String?,
@@ -81,6 +84,7 @@ fun AlarmEditScreen(
     val groups by viewModel.groups.collectAsState()
     val context = LocalContext.current
     val existing = alarmId?.let { id -> alarms.find { it.id == id } }
+    val existingRepeat = existing?.repeat
     val initialTime = existing?.time ?: LocalTime.now().plusMinutes(1).withSecond(0).withNano(0)
 
     val timePickerState = rememberTimePickerState(
@@ -92,17 +96,20 @@ fun AlarmEditScreen(
     var selectedMinute by remember(existing?.id) { mutableIntStateOf(initialTime.minute) }
     var label by remember(existing?.id) { mutableStateOf(existing?.label.orEmpty()) }
     var isActive by remember(existing?.id) { mutableStateOf(true) }
-    var repeatType by remember(existing?.id) { mutableStateOf(existing?.repeat?.type ?: RepeatType.ONCE) }
-    var selectedDays by remember(existing?.id) { mutableStateOf(existing?.repeat?.daysOfWeek ?: emptySet()) }
-    var weekInterval by remember(existing?.id) { mutableIntStateOf(existing?.repeat?.weekInterval ?: 2) }
-    var monthInterval by remember(existing?.id) { mutableIntStateOf(existing?.repeat?.monthInterval ?: 1) }
-    var dayOfMonth by remember(existing?.id) { mutableIntStateOf(existing?.repeat?.dayOfMonth ?: LocalDate.now().dayOfMonth) }
+    var repeatType by remember(existing?.id) { mutableStateOf(initialRepeatType(existingRepeat)) }
+    var isRepeating by remember(existing?.id) { mutableStateOf(initialIsRepeating(existingRepeat)) }
+    var selectedDays by remember(existing?.id) { mutableStateOf(initialSelectedDays(existingRepeat)) }
+    var weekIntervalText by remember(existing?.id) {
+        mutableStateOf((existingRepeat?.weekInterval ?: 2).toString())
+    }
+    val weekInterval = weekIntervalText.toIntOrNull()?.coerceAtLeast(2) ?: 2
+    var monthInterval by remember(existing?.id) { mutableIntStateOf(existingRepeat?.monthInterval ?: 1) }
+    var dayOfMonth by remember(existing?.id) { mutableIntStateOf(existingRepeat?.dayOfMonth ?: LocalDate.now().dayOfMonth) }
     var repeatAnchorDate by remember(existing?.id) {
-        mutableStateOf(
-            LocalDate.ofEpochDay(
-                existing?.repeat?.anchorEpochDay ?: existing?.createdEpochDay ?: LocalDate.now().toEpochDay()
-            )
-        )
+        mutableStateOf(LocalDate.ofEpochDay(initialRepeatAnchorEpochDay(existingRepeat, existing?.createdEpochDay)))
+    }
+    var oneTimeDate by remember(existing?.id) {
+        mutableStateOf(LocalDate.ofEpochDay(initialOneTimeAnchorEpochDay(existingRepeat)))
     }
     var vibrate by remember(existing?.id) { mutableStateOf(existing?.vibrate ?: settings.defaultVibrate) }
     var readLabelAloud by remember(existing?.id) { mutableStateOf(existing?.readLabelAloud ?: settings.defaultReadLabelAloud) }
@@ -115,6 +122,8 @@ fun AlarmEditScreen(
     var wakeCheckResponseMinutes by remember(existing?.id) { mutableIntStateOf(existing?.wakeCheckResponseMinutes ?: settings.defaultWakeCheckResponseMinutes) }
     var selectedGroupId by remember(existing?.id) { mutableStateOf(existing?.groupId) }
     var createNewGroup by remember(existing?.id) { mutableStateOf(false) }
+    var groupMenuExpanded by remember(existing?.id) { mutableStateOf(false) }
+    var repeatMenuExpanded by remember(existing?.id) { mutableStateOf(false) }
     var newGroupName by remember(existing?.id) { mutableStateOf("") }
     var customSoundUri by remember(existing?.id) { mutableStateOf(existing?.soundUri) }
     var showCustomSnoozeDialog by remember { mutableStateOf(false) }
@@ -123,15 +132,6 @@ fun AlarmEditScreen(
 
     val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
     val dayValues = listOf(7, 1, 2, 3, 4, 5, 6)
-    val repeatTypes = listOf(
-        RepeatType.ONCE to "One-time",
-        RepeatType.DAILY to "Daily",
-        RepeatType.WEEKLY to "Weekly",
-        RepeatType.INTERVAL_WEEKS to "Every N weeks",
-        RepeatType.MONTHLY to "Monthly",
-        RepeatType.YEARLY to "Yearly"
-    )
-
     fun selectRepeatType(type: RepeatType) {
         repeatType = type
         if ((type == RepeatType.WEEKLY || type == RepeatType.INTERVAL_WEEKS) && selectedDays.isEmpty()) {
@@ -140,17 +140,26 @@ fun AlarmEditScreen(
     }
 
     val previewSchedule = RepeatSchedule(
-        type = repeatType,
+        type = if (isRepeating) repeatType else RepeatType.ONCE,
         daysOfWeek = selectedDays,
         weekInterval = weekInterval,
         monthInterval = monthInterval,
         dayOfMonth = dayOfMonth,
-        anchorEpochDay = repeatAnchorDate.toEpochDay()
+        anchorEpochDay = (if (isRepeating) repeatAnchorDate else oneTimeDate).toEpochDay()
     )
     val selectedTime = if (settings.timePickerStyle == TimePickerStyle.ANALOG) {
         LocalTime.of(timePickerState.hour, timePickerState.minute)
     } else {
         LocalTime.of(selectedHour, selectedMinute)
+    }
+    fun nextOneTimeDate(days: Set<Int>, now: java.time.LocalDateTime = java.time.LocalDateTime.now()): LocalDate {
+        val today = now.toLocalDate()
+        val nextOffset = (0..7).firstOrNull { offset ->
+            val candidate = today.plusDays(offset.toLong())
+            candidate.dayOfWeek.value in days &&
+                (offset > 0 || selectedTime.isAfter(now.toLocalTime()))
+        } ?: 0
+        return today.plusDays(nextOffset.toLong())
     }
     val previewAlarm = Alarm(time = selectedTime, repeat = previewSchedule, isEnabled = true)
     val countdownLine = TimeUtils.nextAlarmHeader(listOf(previewAlarm), settings.use24HourFormat)
@@ -192,7 +201,7 @@ fun AlarmEditScreen(
                 readLabelAloud,
                 snoozeEnabled,
                 snoozeMinutes,
-                deleteAfterDismiss = repeatType == RepeatType.ONCE && deleteAfterDismiss,
+                deleteAfterDismiss = !isRepeating && deleteAfterDismiss,
                 wakeCheckEnabled = wakeCheckEnabled,
                 wakeCheckDelayMinutes = wakeCheckDelayMinutes,
                 wakeCheckResponseMinutes = wakeCheckResponseMinutes,
@@ -211,7 +220,7 @@ fun AlarmEditScreen(
                     readLabelAloud = readLabelAloud,
                     snoozeEnabled = snoozeEnabled,
                     snoozeMinutes = snoozeMinutes,
-                    deleteAfterDismiss = repeatType == RepeatType.ONCE && deleteAfterDismiss,
+                    deleteAfterDismiss = !isRepeating && deleteAfterDismiss,
                     wakeCheckEnabled = wakeCheckEnabled,
                     wakeCheckDelayMinutes = wakeCheckDelayMinutes,
                     wakeCheckResponseMinutes = wakeCheckResponseMinutes,
@@ -326,6 +335,7 @@ fun AlarmEditScreen(
         }
     ) { innerPadding ->
         Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
@@ -351,80 +361,59 @@ fun AlarmEditScreen(
                         }
                     )
                 }
-                Text(
-                    text = timeUntilText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(y = (-18).dp)
-                        .padding(end = 20.dp)
+            }
+
+            Text(
+                text = timeUntilText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.End
+            )
+            HorizontalDivider()
+            Text("Schedule", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Repeating")
+                RepeatTypeDropdown(
+                    selected = if (isRepeating) repeatType else RepeatType.ONCE,
+                    expanded = repeatMenuExpanded,
+                    onExpandedChange = { repeatMenuExpanded = it },
+                    onSelected = { type ->
+                        if (type == RepeatType.ONCE) {
+                            oneTimeDate = nextOneTimeDate(selectedDays)
+                            isRepeating = false
+                        } else {
+                            selectRepeatType(type)
+                            isRepeating = true
+                        }
+                        repeatMenuExpanded = false
+                    },
+                    modifier = Modifier.width(210.dp)
                 )
             }
-
-            HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
-            Text("Schedule", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
-            Text(
-                "Choose how often this alarm should repeat.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeatTypes.forEach { (type, name) ->
-                    FilterChip(
-                        selected = repeatType == type,
-                        onClick = { selectRepeatType(type) },
-                        label = { Text(name) }
-                    )
-                }
-            }
-            Text(
-                RepeatCalculator.summary(previewSchedule),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-                if (repeatType == RepeatType.WEEKLY || repeatType == RepeatType.INTERVAL_WEEKS) {
-                    Text("Days", style = MaterialTheme.typography.labelLarge)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        dayLetters.forEachIndexed { index, letter ->
-                            val day = dayValues[index]
-                            val selected = day in selectedDays
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(if (selected) ElectricCyan.copy(alpha = 0.25f) else CardSurface)
-                                    .border(
-                                        1.dp,
-                                        if (selected) ElectricCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                        CircleShape
-                                    )
-                                    .clickable {
-                                        if (selected && selectedDays.size == 1) return@clickable
-                                        selectedDays = if (selected) selectedDays - day else selectedDays + day
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(letter)
-                            }
-                        }
-                    }
-                }
-
+            if (isRepeating) {
                 if (repeatType == RepeatType.INTERVAL_WEEKS) {
-                    Text("Every", style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(2, 3, 4, 6, 8).forEach { weeks ->
-                            FilterChip(
-                                selected = weekInterval == weeks,
-                                onClick = { weekInterval = weeks },
-                                label = { Text("$weeks weeks") }
-                            )
-                        }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Every", style = MaterialTheme.typography.labelLarge)
+                        OutlinedTextField(
+                            value = weekIntervalText,
+                            onValueChange = { value ->
+                                if (value.length <= 3 && value.all { it.isDigit() }) {
+                                    weekIntervalText = value
+                                }
+                            },
+                            modifier = Modifier.width(88.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        Text("weeks", style = MaterialTheme.typography.labelLarge)
                     }
                 }
 
@@ -453,8 +442,57 @@ fun AlarmEditScreen(
                         onDateSelected = { repeatAnchorDate = it }
                     )
                 }
+            }
 
-                if (repeatType == RepeatType.ONCE) {
+            if (!isRepeating || repeatType == RepeatType.WEEKLY || repeatType == RepeatType.INTERVAL_WEEKS) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (isRepeating) "Days" else "Day", style = MaterialTheme.typography.labelLarge)
+                    if (isRepeating) {
+                        TextButton(onClick = { selectedDays = (1..7).toSet() }) {
+                            Text("Every day")
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    dayLetters.forEachIndexed { index, letter ->
+                        val day = dayValues[index]
+                        val selected = day in selectedDays
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(if (selected) ElectricCyan.copy(alpha = 0.25f) else CardSurface)
+                                .border(
+                                    1.dp,
+                                    if (selected) ElectricCyan else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                    CircleShape
+                                )
+                                .clickable {
+                                    if (isRepeating) {
+                                        if (selected && selectedDays.size == 1) return@clickable
+                                        selectedDays = if (selected) selectedDays - day else selectedDays + day
+                                    } else {
+                                        if (selected && selectedDays.size == 1) return@clickable
+                                        selectedDays = if (selected) selectedDays - day else selectedDays + day
+                                        oneTimeDate = nextOneTimeDate(selectedDays)
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(letter)
+                        }
+                    }
+                }
+            }
+
+                if (!isRepeating) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -471,10 +509,9 @@ fun AlarmEditScreen(
                         Switch(checked = deleteAfterDismiss, onCheckedChange = { deleteAfterDismiss = it })
                     }
                 }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Label", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
+            HorizontalDivider()
+            Text("Label", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
@@ -507,8 +544,6 @@ fun AlarmEditScreen(
                     Switch(checked = readLabelAloud, onCheckedChange = { readLabelAloud = it })
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
-                Text("Sound", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
                 AlarmSoundPickerRow(
                     soundName = AlarmSoundUtils.getTitle(
                         context,
@@ -519,7 +554,8 @@ fun AlarmEditScreen(
                         ?: AlarmSoundUtils.resolvePickerUri(existing, settings),
                     onSoundPicked = { uri ->
                         customSoundUri = AlarmSoundUtils.uriToStorage(uri)
-                    }
+                    },
+                    buttonTextPrefix = "Change sound:"
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -530,35 +566,58 @@ fun AlarmEditScreen(
                     Switch(checked = vibrate, onCheckedChange = { vibrate = it })
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
-                Text("Group", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = !createNewGroup && selectedGroupId == null,
-                        onClick = {
-                            createNewGroup = false
-                            selectedGroupId = null
+                val selectedGroupLabel = when {
+                    createNewGroup -> "New group"
+                    selectedGroupId == null -> "No group"
+                    else -> groups.find { it.id == selectedGroupId }?.label ?: "No group"
+                }
+                ExposedDropdownMenuBox(
+                    expanded = groupMenuExpanded,
+                    onExpandedChange = { groupMenuExpanded = it },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = selectedGroupLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        singleLine = true,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = groupMenuExpanded)
                         },
-                        label = { Text("No group") }
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
                     )
-                    groups.forEach { group ->
-                        FilterChip(
-                            selected = !createNewGroup && selectedGroupId == group.id,
+                    ExposedDropdownMenu(
+                        expanded = groupMenuExpanded,
+                        onDismissRequest = { groupMenuExpanded = false },
+                        modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("No group") },
                             onClick = {
                                 createNewGroup = false
-                                selectedGroupId = group.id
-                            },
-                            label = { Text(group.label) }
+                                selectedGroupId = null
+                                groupMenuExpanded = false
+                            }
+                        )
+                        groups.forEach { group ->
+                            DropdownMenuItem(
+                                text = { Text(group.label) },
+                                onClick = {
+                                    createNewGroup = false
+                                    selectedGroupId = group.id
+                                    groupMenuExpanded = false
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("New group") },
+                            onClick = {
+                                createNewGroup = true
+                                selectedGroupId = null
+                                groupMenuExpanded = false
+                            }
                         )
                     }
-                    FilterChip(
-                        selected = createNewGroup,
-                        onClick = {
-                            createNewGroup = true
-                            selectedGroupId = null
-                        },
-                        label = { Text("New group") }
-                    )
                 }
                 if (createNewGroup) {
                     OutlinedTextField(
@@ -570,44 +629,6 @@ fun AlarmEditScreen(
                     )
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
-                Text("Check I'm awake", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Ask me to confirm I'm awake")
-                        Text(
-                            "Shows silently after this alarm is dismissed",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(checked = wakeCheckEnabled, onCheckedChange = { wakeCheckEnabled = it })
-                }
-                if (wakeCheckEnabled) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Check after ${TimeUtils.formatSnoozeDuration(wakeCheckDelayMinutes)}")
-                        TextButton(onClick = { showWakeCheckDelayDialog = true }) { Text("Change") }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Re-ring after ${TimeUtils.formatSnoozeDuration(wakeCheckResponseMinutes)}")
-                        TextButton(onClick = { showWakeCheckResponseDialog = true }) { Text("Change") }
-                    }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
-                Text("Snooze", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -636,6 +657,125 @@ fun AlarmEditScreen(
                     }
                     Switch(checked = snoozeEnabled, onCheckedChange = { snoozeEnabled = it })
                 }
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Ask me to confirm I'm awake")
+                            Text(
+                                "Shows silently after this alarm is dismissed",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = wakeCheckEnabled, onCheckedChange = { wakeCheckEnabled = it })
+                    }
+                    if (wakeCheckEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Check after ${TimeUtils.formatSnoozeDuration(wakeCheckDelayMinutes)}")
+                            TextButton(onClick = { showWakeCheckDelayDialog = true }) { Text("Change") }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Re-ring after ${TimeUtils.formatSnoozeDuration(wakeCheckResponseMinutes)}")
+                            TextButton(onClick = { showWakeCheckResponseDialog = true }) { Text("Change") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun initialRepeatType(repeat: RepeatSchedule?): RepeatType {
+    if (repeat == null) return RepeatType.WEEKLY
+    return when (repeat.type) {
+        RepeatType.DAILY, RepeatType.ONCE -> RepeatType.WEEKLY
+        else -> repeat.type
+    }
+}
+
+private fun initialIsRepeating(repeat: RepeatSchedule?): Boolean =
+    repeat != null && repeat.type != RepeatType.ONCE
+
+private fun initialSelectedDays(repeat: RepeatSchedule?): Set<Int> {
+    if (repeat == null) return setOf(LocalDate.now().dayOfWeek.value)
+    return when (repeat.type) {
+        RepeatType.DAILY -> (1..7).toSet()
+        RepeatType.ONCE -> repeat.daysOfWeek?.takeIf { it.isNotEmpty() }
+            ?: setOf(LocalDate.ofEpochDay(repeat.anchorEpochDay ?: LocalDate.now().toEpochDay()).dayOfWeek.value)
+        else -> repeat.daysOfWeek?.takeIf { it.isNotEmpty() }
+            ?: setOf(LocalDate.now().dayOfWeek.value)
+    }
+}
+
+private fun initialRepeatAnchorEpochDay(repeat: RepeatSchedule?, createdEpochDay: Long?): Long =
+    repeat?.anchorEpochDay ?: createdEpochDay ?: LocalDate.now().toEpochDay()
+
+private fun initialOneTimeAnchorEpochDay(repeat: RepeatSchedule?): Long =
+    if (repeat != null && repeat.type == RepeatType.ONCE) {
+        repeat.anchorEpochDay ?: LocalDate.now().toEpochDay()
+    } else {
+        LocalDate.now().toEpochDay()
+    }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RepeatTypeDropdown(
+    selected: RepeatType,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelected: (RepeatType) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val options = listOf(
+        RepeatType.ONCE to "One-time",
+        RepeatType.WEEKLY to "Weekly",
+        RepeatType.INTERVAL_WEEKS to "Every N weeks",
+        RepeatType.MONTHLY to "Monthly",
+        RepeatType.YEARLY to "Yearly"
+    )
+    val selectedLabel = when (selected) {
+        RepeatType.ONCE -> "One-time"
+        RepeatType.INTERVAL_WEEKS -> "Every N weeks"
+        RepeatType.MONTHLY -> "Monthly"
+        RepeatType.YEARLY -> "Yearly"
+        else -> "Weekly"
+    }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = onExpandedChange,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true)
+        ) {
+            options.forEach { (type, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = { onSelected(type) }
+                )
             }
         }
     }
