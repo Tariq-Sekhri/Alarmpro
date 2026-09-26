@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -24,7 +25,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
@@ -58,11 +58,10 @@ import ca.sekhrit.alarmpro.data.RepeatSchedule
 import ca.sekhrit.alarmpro.data.RepeatType
 import ca.sekhrit.alarmpro.data.TimePickerStyle
 import ca.sekhrit.alarmpro.ui.components.AlarmSoundPickerRow
-import ca.sekhrit.alarmpro.ui.components.DurationPickerDialog
-import ca.sekhrit.alarmpro.ui.components.YearlyDatePickerField
 import ca.sekhrit.alarmpro.ui.components.WheelTimePicker
 import ca.sekhrit.alarmpro.ui.theme.CardSurface
 import ca.sekhrit.alarmpro.ui.theme.ElectricCyan
+import ca.sekhrit.alarmpro.ui.theme.TextSecondary
 import ca.sekhrit.alarmpro.ui.theme.WarmAmber
 import ca.sekhrit.alarmpro.util.AlarmGrouping
 import ca.sekhrit.alarmpro.util.AlarmSoundUtils
@@ -126,9 +125,6 @@ fun AlarmEditScreen(
     var repeatMenuExpanded by remember(existing?.id) { mutableStateOf(false) }
     var newGroupName by remember(existing?.id) { mutableStateOf("") }
     var customSoundUri by remember(existing?.id) { mutableStateOf(existing?.soundUri) }
-    var showCustomSnoozeDialog by remember { mutableStateOf(false) }
-    var showWakeCheckDelayDialog by remember { mutableStateOf(false) }
-    var showWakeCheckResponseDialog by remember { mutableStateOf(false) }
 
     val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
     val dayValues = listOf(7, 1, 2, 3, 4, 5, 6)
@@ -164,10 +160,15 @@ fun AlarmEditScreen(
     val previewAlarm = Alarm(time = selectedTime, repeat = previewSchedule, isEnabled = true)
     val countdownLine = TimeUtils.nextAlarmHeader(listOf(previewAlarm), settings.use24HourFormat)
         ?.countdownLine ?: "(less than a minute from now)"
-    val timeUntilText = "in " + countdownLine
-        .removePrefix("(")
-        .removeSuffix(")")
-        .removeSuffix(" from now")
+    val nextDate = RepeatCalculator.nextTriggerDate(previewAlarm, LocalDate.now(), LocalTime.now())
+    val timeUntilText = if (nextDate.isAfter(LocalDate.now().plusDays(1))) {
+        "Next · " + nextDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d"))
+    } else {
+        "in " + countdownLine
+            .removePrefix("(")
+            .removeSuffix(")")
+            .removeSuffix(" from now")
+    }
 
     val defaultLabelPreview = remember(selectedGroupId, createNewGroup, newGroupName, groups, alarms, existing?.id) {
         val groupLabel = when {
@@ -233,59 +234,13 @@ fun AlarmEditScreen(
         onBack()
     }
 
-    if (showCustomSnoozeDialog) {
-        DurationPickerDialog(
-            title = "Snooze Duration:",
-            initialTotalSeconds = customSnoozeMinutes * 60,
-            showLabel = false,
-            showSeconds = false,
-            onDismiss = { showCustomSnoozeDialog = false },
-            onResetToDefault = {
-                useDefaultSnoozeLength = true
-                showCustomSnoozeDialog = false
-            },
-            onConfirm = { totalSeconds, _ ->
-                useDefaultSnoozeLength = false
-                customSnoozeMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)
-                showCustomSnoozeDialog = false
-            }
-        )
-    }
-
-    if (showWakeCheckDelayDialog) {
-        DurationPickerDialog(
-            title = "Check after",
-            initialTotalSeconds = wakeCheckDelayMinutes * 60,
-            showLabel = false,
-            showSeconds = false,
-            onDismiss = { showWakeCheckDelayDialog = false },
-            onConfirm = { totalSeconds, _ ->
-                wakeCheckDelayMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)
-                showWakeCheckDelayDialog = false
-            }
-        )
-    }
-    if (showWakeCheckResponseDialog) {
-        DurationPickerDialog(
-            title = "Re-ring after no response",
-            initialTotalSeconds = wakeCheckResponseMinutes * 60,
-            showLabel = false,
-            showSeconds = false,
-            onDismiss = { showWakeCheckResponseDialog = false },
-            onConfirm = { totalSeconds, _ ->
-                wakeCheckResponseMinutes = TimeUtils.snoozeMinutesFromDurationSeconds(totalSeconds)
-                showWakeCheckResponseDialog = false
-            }
-        )
-    }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
                     ca.sekhrit.alarmpro.ui.components.AutoSizingTopAppBarTitle(
-                        if (existing == null) "Create Alarm" else "Edit Alarm"
+                        if (existing == null) "New alarm" else "Edit alarm"
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -297,59 +252,44 @@ fun AlarmEditScreen(
                     }
                 },
                 actions = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Text(if (isActive) "On" else "Off", style = MaterialTheme.typography.bodyMedium)
-                        Switch(
-                            checked = isActive,
-                            onCheckedChange = { isActive = it }
-                        )
-                    }
+                    Switch(
+                        checked = isActive,
+                        onCheckedChange = { isActive = it },
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                 }
             )
         },
         bottomBar = {
-            Row(
+            Button(
+                onClick = { saveAlarm() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                OutlinedButton(
-                    onClick = onBack,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Cancel")
-                }
-                Button(
-                    onClick = { saveAlarm() },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (existing == null) "Create alarm" else "Save changes")
-                }
+                Text(if (existing == null) "Create alarm" else "Save changes")
             }
         }
     ) { innerPadding ->
         Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
-                contentAlignment = Alignment.Center
+                    .clip(MaterialTheme.shapes.large)
+                    .background(CardSurface)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (settings.timePickerStyle == TimePickerStyle.ANALOG) {
-                    TimePicker(state = timePickerState)
+                    TimeInput(state = timePickerState)
                 } else {
                     WheelTimePicker(
                         hour = selectedHour,
@@ -361,17 +301,13 @@ fun AlarmEditScreen(
                         }
                     )
                 }
+                Text(
+                    text = timeUntilText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
             }
-
-            Text(
-                text = timeUntilText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.End
-            )
-            HorizontalDivider()
-            Text("Schedule", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
+            EditorSection("Schedule") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -437,7 +373,7 @@ fun AlarmEditScreen(
 
                 if (repeatType == RepeatType.YEARLY) {
                     Text("Date", style = MaterialTheme.typography.labelLarge)
-                    YearlyDatePickerField(
+                    InlineYearlyDateField(
                         date = repeatAnchorDate,
                         onDateSelected = { repeatAnchorDate = it }
                     )
@@ -509,16 +445,15 @@ fun AlarmEditScreen(
                         Switch(checked = deleteAfterDismiss, onCheckedChange = { deleteAfterDismiss = it })
                     }
                 }
-            HorizontalDivider()
-            Text("Label", style = MaterialTheme.typography.titleSmall, color = WarmAmber)
+            }
+            EditorSection("Details") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = {
-                        Text(defaultLabelPreview ?: "Custom name (optional)")
-                    },
+                    label = { Text("Name") },
+                    placeholder = { Text(defaultLabelPreview ?: "Optional") },
                     singleLine = true
                 )
                 defaultLabelPreview?.let { preview ->
@@ -555,7 +490,8 @@ fun AlarmEditScreen(
                     onSoundPicked = { uri ->
                         customSoundUri = AlarmSoundUtils.uriToStorage(uri)
                     },
-                    buttonTextPrefix = "Change sound:"
+                    buttonTextPrefix = "Sound ·",
+                    inlineChoices = true
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -629,6 +565,10 @@ fun AlarmEditScreen(
                     )
                 }
 
+            }
+            }
+            EditorSection("After ringing") {
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -636,26 +576,23 @@ fun AlarmEditScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Allow snooze")
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Snooze duration: ${
-                                    if (useDefaultSnoozeLength) {
-                                        TimeUtils.formatSnoozeDuration(settings.defaultSnoozeMinutes)
-                                    } else {
-                                        TimeUtils.formatSnoozeDuration(customSnoozeMinutes)
-                                    }
-                                }",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (snoozeEnabled) {
-                                TextButton(onClick = { showCustomSnoozeDialog = true }) {
-                                    Text("Change")
-                                }
-                            }
-                        }
                     }
                     Switch(checked = snoozeEnabled, onCheckedChange = { snoozeEnabled = it })
+                }
+                if (snoozeEnabled) {
+                    MinuteControl(
+                        label = "Snooze for",
+                        value = if (useDefaultSnoozeLength) settings.defaultSnoozeMinutes else customSnoozeMinutes,
+                        onValueChange = {
+                            customSnoozeMinutes = it
+                            useDefaultSnoozeLength = false
+                        }
+                    )
+                    if (!useDefaultSnoozeLength) {
+                        TextButton(onClick = { useDefaultSnoozeLength = true }) {
+                            Text("Use default (${TimeUtils.formatSnoozeDuration(settings.defaultSnoozeMinutes)})")
+                        }
+                    }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -675,26 +612,101 @@ fun AlarmEditScreen(
                         Switch(checked = wakeCheckEnabled, onCheckedChange = { wakeCheckEnabled = it })
                     }
                     if (wakeCheckEnabled) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Check after ${TimeUtils.formatSnoozeDuration(wakeCheckDelayMinutes)}")
-                            TextButton(onClick = { showWakeCheckDelayDialog = true }) { Text("Change") }
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Re-ring after ${TimeUtils.formatSnoozeDuration(wakeCheckResponseMinutes)}")
-                            TextButton(onClick = { showWakeCheckResponseDialog = true }) { Text("Change") }
-                        }
+                        MinuteControl("Check after", wakeCheckDelayMinutes) { wakeCheckDelayMinutes = it }
+                        MinuteControl("Re-ring after", wakeCheckResponseMinutes) { wakeCheckResponseMinutes = it }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EditorSection(title: String, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(CardSurface)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(title, style = MaterialTheme.typography.titleSmall, color = WarmAmber)
+        content()
+    }
+}
+
+@Composable
+private fun MinuteControl(label: String, value: Int, onValueChange: (Int) -> Unit) {
+    var text by remember { mutableStateOf(value.toString()) }
+    androidx.compose.runtime.LaunchedEffect(value) {
+        if (text.toIntOrNull() != value) text = value.toString()
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        TextButton(onClick = { onValueChange((value - 1).coerceAtLeast(1)) }) { Text("−") }
+        OutlinedTextField(
+            value = text,
+            onValueChange = { next ->
+                if (next.length <= 4 && next.all(Char::isDigit)) {
+                    text = next
+                    next.toIntOrNull()?.let { onValueChange(it.coerceAtLeast(1)) }
+                }
+            },
+            modifier = Modifier.width(72.dp),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(textAlign = TextAlign.Center)
+        )
+        TextButton(onClick = { onValueChange((value + 1).coerceAtMost(9999)) }) { Text("+") }
+        Text("min", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InlineYearlyDateField(date: LocalDate, onDateSelected: (LocalDate) -> Unit) {
+    var monthMenuExpanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        ExposedDropdownMenuBox(
+            expanded = monthMenuExpanded,
+            onExpandedChange = { monthMenuExpanded = it },
+            modifier = Modifier.weight(1f)
+        ) {
+            OutlinedTextField(
+                value = date.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()),
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = monthMenuExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(expanded = monthMenuExpanded, onDismissRequest = { monthMenuExpanded = false }) {
+                java.time.Month.entries.forEach { month ->
+                    DropdownMenuItem(
+                        text = { Text(month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())) },
+                        onClick = {
+                            onDateSelected(date.withDayOfMonth(1).withMonth(month.value)
+                                .withDayOfMonth(date.dayOfMonth.coerceAtMost(month.length(date.isLeapYear))))
+                            monthMenuExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+        TextButton(onClick = { onDateSelected(date.withDayOfMonth((date.dayOfMonth - 1).coerceAtLeast(1))) }) { Text("−") }
+        Text("${date.dayOfMonth}", style = MaterialTheme.typography.titleMedium)
+        TextButton(onClick = {
+            onDateSelected(date.withDayOfMonth((date.dayOfMonth + 1).coerceAtMost(date.lengthOfMonth())))
+        }) { Text("+") }
     }
 }
 

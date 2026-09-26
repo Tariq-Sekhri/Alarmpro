@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
@@ -33,6 +34,7 @@ fun AlarmSoundPickerRow(
     onSoundPicked: (Uri?) -> Unit,
     modifier: Modifier = Modifier,
     buttonTextPrefix: String? = null,
+    inlineChoices: Boolean = false,
     title: String = "Choose alarm sound",
     text: String = "Choose a system ringtone or select any audio file on your device.",
     contentDescription: String = "Change alarm sound",
@@ -59,7 +61,7 @@ fun AlarmSoundPickerRow(
         }
     }
 
-    if (showSourceDialog) {
+    if (showSourceDialog && !inlineChoices) {
         AlertDialog(
             onDismissRequest = { showSourceDialog = false },
             title = { Text(title) },
@@ -92,10 +94,10 @@ fun AlarmSoundPickerRow(
         )
     }
 
+    Column(modifier = modifier.fillMaxWidth()) {
     OutlinedButton(
-        onClick = { showSourceDialog = true },
-        modifier = modifier
-            .fillMaxWidth(),
+        onClick = { showSourceDialog = !showSourceDialog },
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -113,5 +115,27 @@ fun AlarmSoundPickerRow(
                 contentDescription = contentDescription
             )
         }
+    }
+    if (inlineChoices && showSourceDialog) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TextButton(
+                onClick = {
+                    showSourceDialog = false
+                    ringtoneLauncher.launch(AlarmSoundUtils.createPickerIntent(context, pickerUri, pickerTitle))
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text("System sounds") }
+            TextButton(
+                onClick = {
+                    showSourceDialog = false
+                    audioFileLauncher.launch(arrayOf("audio/*"))
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text("Audio file") }
+        }
+    }
     }
 }
