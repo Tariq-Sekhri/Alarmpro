@@ -7,12 +7,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -20,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,7 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimeInput
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
@@ -289,7 +293,7 @@ fun AlarmEditScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (settings.timePickerStyle == TimePickerStyle.ANALOG) {
-                    TimeInput(state = timePickerState)
+                    TimePicker(state = timePickerState)
                 } else {
                     WheelTimePicker(
                         hour = selectedHour,
@@ -331,6 +335,8 @@ fun AlarmEditScreen(
                     modifier = Modifier.width(210.dp)
                 )
             }
+            Box(modifier = Modifier.fillMaxWidth().heightIn(min = 176.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (isRepeating) {
                 if (repeatType == RepeatType.INTERVAL_WEEKS) {
                     Row(
@@ -388,7 +394,11 @@ fun AlarmEditScreen(
                 ) {
                     Text(if (isRepeating) "Days" else "Day", style = MaterialTheme.typography.labelLarge)
                     if (isRepeating) {
-                        TextButton(onClick = { selectedDays = (1..7).toSet() }) {
+                        OutlinedButton(
+                            onClick = { selectedDays = (1..7).toSet() },
+                            modifier = Modifier.height(36.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp)
+                        ) {
                             Text("Every day")
                         }
                     }
@@ -446,6 +456,8 @@ fun AlarmEditScreen(
                     }
                 }
             }
+            }
+            }
             EditorSection("Details") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -460,7 +472,8 @@ fun AlarmEditScreen(
                     Text(
                         text = "Default name: $preview",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp)
                     )
                 }
                 Row(
@@ -468,7 +481,7 @@ fun AlarmEditScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
                         Text("Speak time & label")
                         Text(
                             "Speaks when the alarm rings",
@@ -498,7 +511,7 @@ fun AlarmEditScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Vibrate during alarm")
+                    Text("Vibrate during alarm", modifier = Modifier.padding(start = 16.dp))
                     Switch(checked = vibrate, onCheckedChange = { vibrate = it })
                 }
 
@@ -517,6 +530,7 @@ fun AlarmEditScreen(
                         onValueChange = {},
                         readOnly = true,
                         singleLine = true,
+                        label = { Text("Group") },
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = groupMenuExpanded)
                         },
@@ -560,7 +574,8 @@ fun AlarmEditScreen(
                         value = newGroupName,
                         onValueChange = { newGroupName = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Group name, e.g. wake up") },
+                        label = { Text("New group name") },
+                        placeholder = { Text("e.g. wake up") },
                         singleLine = true
                     )
                 }
@@ -586,13 +601,10 @@ fun AlarmEditScreen(
                         onValueChange = {
                             customSnoozeMinutes = it
                             useDefaultSnoozeLength = false
-                        }
+                        },
+                        onReset = { useDefaultSnoozeLength = true },
+                        resetEnabled = !useDefaultSnoozeLength
                     )
-                    if (!useDefaultSnoozeLength) {
-                        TextButton(onClick = { useDefaultSnoozeLength = true }) {
-                            Text("Use default (${TimeUtils.formatSnoozeDuration(settings.defaultSnoozeMinutes)})")
-                        }
-                    }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -612,8 +624,8 @@ fun AlarmEditScreen(
                         Switch(checked = wakeCheckEnabled, onCheckedChange = { wakeCheckEnabled = it })
                     }
                     if (wakeCheckEnabled) {
-                        MinuteControl("Check after", wakeCheckDelayMinutes) { wakeCheckDelayMinutes = it }
-                        MinuteControl("Re-ring after", wakeCheckResponseMinutes) { wakeCheckResponseMinutes = it }
+                        MinuteControl("Check after", wakeCheckDelayMinutes, onValueChange = { wakeCheckDelayMinutes = it })
+                        MinuteControl("Re-ring after", wakeCheckResponseMinutes, onValueChange = { wakeCheckResponseMinutes = it })
                     }
                 }
             }
@@ -637,7 +649,13 @@ private fun EditorSection(title: String, content: @Composable androidx.compose.f
 }
 
 @Composable
-private fun MinuteControl(label: String, value: Int, onValueChange: (Int) -> Unit) {
+private fun MinuteControl(
+    label: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    onReset: (() -> Unit)? = null,
+    resetEnabled: Boolean = true
+) {
     var text by remember { mutableStateOf(value.toString()) }
     androidx.compose.runtime.LaunchedEffect(value) {
         if (text.toIntOrNull() != value) text = value.toString()
@@ -648,7 +666,19 @@ private fun MinuteControl(label: String, value: Int, onValueChange: (Int) -> Uni
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        TextButton(onClick = { onValueChange((value - 1).coerceAtLeast(1)) }) { Text("−") }
+        if (onReset != null) {
+            IconButton(
+                onClick = onReset,
+                enabled = resetEnabled,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = "Reset to default", modifier = Modifier.size(18.dp))
+            }
+        }
+        IconButton(
+            onClick = { onValueChange((value - 1).coerceAtLeast(1)) },
+            modifier = Modifier.size(36.dp)
+        ) { Text("−") }
         OutlinedTextField(
             value = text,
             onValueChange = { next ->
@@ -657,12 +687,15 @@ private fun MinuteControl(label: String, value: Int, onValueChange: (Int) -> Uni
                     next.toIntOrNull()?.let { onValueChange(it.coerceAtLeast(1)) }
                 }
             },
-            modifier = Modifier.width(72.dp),
+            modifier = Modifier.width(64.dp),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             textStyle = MaterialTheme.typography.bodyMedium.copy(textAlign = TextAlign.Center)
         )
-        TextButton(onClick = { onValueChange((value + 1).coerceAtMost(9999)) }) { Text("+") }
+        IconButton(
+            onClick = { onValueChange((value + 1).coerceAtMost(9999)) },
+            modifier = Modifier.size(36.dp)
+        ) { Text("+") }
         Text("min", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
     }
 }
