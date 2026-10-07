@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -330,28 +331,34 @@ fun StopwatchScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(40.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = { selectedViewModel.startPause() },
                         modifier = Modifier
+                            .size(80.dp)
                             .clip(CircleShape)
                             .background(ElevatedSurface)
                     ) {
                         Icon(
                             if (state.isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (state.isRunning) "Pause" else "Start"
+                            contentDescription = if (state.isRunning) "Pause" else "Start",
+                            modifier = Modifier.size(36.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.padding(horizontal = 16.dp))
                     IconButton(
                         onClick = { selectedViewModel.reset() },
                         modifier = Modifier
+                            .size(80.dp)
                             .clip(CircleShape)
                             .background(ElevatedSurface)
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Reset")
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Reset",
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
                 }
 
