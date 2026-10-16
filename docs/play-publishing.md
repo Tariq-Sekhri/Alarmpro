@@ -8,6 +8,10 @@ The workflow can also be started from GitHub Actions with **Run workflow** on
 `main`. Each new run gets version code `100000 + GITHUB_RUN_NUMBER` and a version
 name based on `app/build.gradle.kts`, such as `0.8.1-ci.42`. A rerun keeps the same
 version code; start a new run if that code has already been uploaded to Play.
+If publishing fails after the signed artifact was saved, use **Run workflow**
+with `artifact_run_id` set to that failed run's numeric ID. This retries the
+existing bundle without rebuilding. Only completed push runs of this workflow
+on `main` are accepted. Leave this field empty for a new build.
 Future manually uploaded bundles must also have a higher version code than the
 last CI upload.
 
@@ -23,6 +27,9 @@ GitHub Actions repository secrets:
 Google authentication uses GitHub OIDC and short-lived service account
 impersonation, without a downloaded service account key. The provider and account
 binding restrict access to `repo:Tariq-Sekhri/Alarmpro:ref:refs/heads/main`.
+The provider verifies repository ID `1308289574`, owner ID `34610622`, and the
+`refs/heads/main` ref, and maps those verified repository/ref claims to that
+principal. This supports GitHub's immutable OIDC subject format.
 Play Console permissions are limited to viewing Alarm Pro and releasing it to
 testing tracks.
 
