@@ -18,3 +18,4 @@ local.properties
 *.apk
 *.ap_
 *.aab
+gha-creds-*.json

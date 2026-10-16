@@ -37,7 +37,9 @@ jobs:
         shell: bash
         run: |
           echo "VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
-          echo "VERSION_NAME=0.6.3-ci.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          BASE_VERSION=$(sed -n 's/.*versionName = ciVersionName.orNull ?: "\([^"]*\)"/\1/p' app/build.gradle.kts)
+          test -n "$BASE_VERSION"
+          echo "VERSION_NAME=${BASE_VERSION}-ci.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
       - name: Restore upload keystore
         shell: bash
@@ -53,7 +55,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: >-
-          ./gradlew :app:bundleRelease
+          bash ./gradlew :app:bundleRelease
           -PciVersionCode="$VERSION_CODE"
           -PciVersionName="$VERSION_NAME"
           --console=plain
@@ -81,7 +83,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: >-
-          ./gradlew :app:publishReleaseBundle
+          bash ./gradlew :app:publishReleaseBundle
           --artifact-dir app/build/outputs/bundle/release
           --track internal
           --release-status completed
