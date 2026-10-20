@@ -45,6 +45,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -341,14 +343,27 @@ fun TimerScreen(
                     }
                 }
             )
-        }
+        },
+        floatingActionButton = {
+            if (!selectionMode && !settings.largerButtons) {
+                FloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    modifier = Modifier.testTag("timer-add-fab"),
+                    containerColor = ElectricCyan,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.HourglassEmpty, contentDescription = "Add timer")
+                }
+            }
+        },
+        floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center
     ) { innerPadding ->
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = if (settings.largerButtons) 16.dp else 88.dp)
         ) {
             item {
                 Row(
@@ -373,7 +388,7 @@ fun TimerScreen(
                             MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
-                    if (!selectionMode) {
+                    if (!selectionMode && settings.largerButtons) {
                         IconButton(onClick = { showAddDialog = true }) {
                             Icon(Icons.Default.HourglassEmpty, contentDescription = "Add timer", tint = ElectricCyan)
                         }
@@ -649,7 +664,8 @@ private fun TimerPresetCard(
             )
     ) {
         androidx.compose.foundation.layout.BoxWithConstraints {
-            val compact = maxWidth < 400.dp
+            val largerControls = ca.sekhrit.alarmpro.ui.theme.LocalLargerControls.current
+            val compact = largerControls && maxWidth < 400.dp
             val controls: @Composable () -> Unit = {
                 if (!selectionMode) {
                     if (usePlayPauseButton) {
@@ -731,7 +747,7 @@ private fun TimerPresetCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                        .padding(horizontal = 12.dp, vertical = if (largerControls) 4.dp else 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (sortMode == TimerSortMode.MANUAL && !selectionMode && group == null) {

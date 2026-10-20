@@ -53,6 +53,11 @@ class AccessibilitySettingsTest {
             compose.onNode(hasText("Timer") and hasClickAction()).performClick()
             capture("00-timer-default")
             val normalRestartWidth = compose.onAllNodesWithContentDescription("Restart timer")[0].fetchSemanticsNode().boundsInRoot.width
+            compose.onNodeWithTag("timer-add-fab").assertIsDisplayed()
+            val normalRestart = compose.onAllNodesWithContentDescription("Restart timer")[0].fetchSemanticsNode().boundsInRoot
+            val normalDuration = compose.onNodeWithText("1:20:00", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            assertTrue("Normal timer controls must stay beside the duration",
+                normalRestart.center.y < normalDuration.bottom + normalDuration.height / 2f)
             compose.onAllNodesWithContentDescription("Settings")[0].performClick()
             compose.onNodeWithText("General Settings").performClick()
             capture("01-settings-default")
@@ -76,6 +81,7 @@ class AccessibilitySettingsTest {
             compose.onNodeWithContentDescription("Back").performClick()
             compose.onNode(hasText("Timer") and hasClickAction()).performClick()
             capture("04-timer-larger")
+            compose.onNodeWithTag("timer-add-fab").assertDoesNotExist()
             val largeRestartWidth = compose.onAllNodesWithContentDescription("Restart timer")[0].fetchSemanticsNode().boundsInRoot.width
             assertTrue("Timer restart icons must grow, independently of cards", largeRestartWidth > normalRestartWidth * 1.45f)
             compose.onNodeWithContentDescription("Add timer").performClick()
