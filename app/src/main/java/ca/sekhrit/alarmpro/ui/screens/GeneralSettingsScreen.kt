@@ -10,7 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import ca.sekhrit.alarmpro.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -192,7 +192,7 @@ fun GeneralSettingsScreen(
             SettingsCategoryHeader("Display")
             SettingsSwitchRow(
                 title = "Larger buttons",
-                subtitle = "Enlarge buttons, controls and labels for easier tapping",
+                subtitle = "Make buttons and switches 50% bigger for easier tapping",
                 checked = settings.largerButtons,
                 onCheckedChange = { viewModel.updateSettings(settings.copy(largerButtons = it)) }
             )

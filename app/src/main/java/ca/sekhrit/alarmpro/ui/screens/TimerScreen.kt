@@ -45,19 +45,18 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import ca.sekhrit.alarmpro.ui.components.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import ca.sekhrit.alarmpro.ui.components.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import ca.sekhrit.alarmpro.ui.components.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -342,26 +341,14 @@ fun TimerScreen(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            if (!selectionMode) {
-                FloatingActionButton(
-                    onClick = { showAddDialog = true },
-                    containerColor = ElectricCyan,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(Icons.Default.HourglassEmpty, contentDescription = "Add timer")
-                }
-            }
-        },
-        floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center
+        }
     ) { innerPadding ->
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
         ) {
             item {
                 Row(
@@ -378,6 +365,7 @@ fun TimerScreen(
                     )
                     Text(
                         text = nextHeader ?: "No Timers Set",
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
                         color = if (isActive) {
                             MaterialTheme.colorScheme.onSurface
@@ -385,6 +373,11 @@ fun TimerScreen(
                             MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
+                    if (!selectionMode) {
+                        IconButton(onClick = { showAddDialog = true }) {
+                            Icon(Icons.Default.HourglassEmpty, contentDescription = "Add timer", tint = ElectricCyan)
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -656,7 +649,7 @@ private fun TimerPresetCard(
             )
     ) {
         androidx.compose.foundation.layout.BoxWithConstraints {
-            val compact = maxWidth < 340.dp
+            val compact = maxWidth < 400.dp
             val controls: @Composable () -> Unit = {
                 if (!selectionMode) {
                     if (usePlayPauseButton) {
@@ -738,7 +731,7 @@ private fun TimerPresetCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 14.dp),
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (sortMode == TimerSortMode.MANUAL && !selectionMode && group == null) {
@@ -778,8 +771,8 @@ private fun TimerPresetCard(
                 }
                 if (compact && !selectionMode) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         controls()

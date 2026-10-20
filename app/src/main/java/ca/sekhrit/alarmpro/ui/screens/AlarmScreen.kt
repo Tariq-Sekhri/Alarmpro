@@ -50,12 +50,12 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import ca.sekhrit.alarmpro.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import ca.sekhrit.alarmpro.ui.components.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -90,7 +90,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.TextButton
+import ca.sekhrit.alarmpro.ui.components.TextButton
 import ca.sekhrit.alarmpro.data.Alarm
 import ca.sekhrit.alarmpro.data.AlarmSortMode
 import ca.sekhrit.alarmpro.data.isSnoozeAllowed

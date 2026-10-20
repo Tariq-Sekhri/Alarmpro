@@ -14,9 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
+import ca.sekhrit.alarmpro.ui.components.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import ca.sekhrit.alarmpro.ui.components.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf

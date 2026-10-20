@@ -73,16 +73,10 @@ fun AlarmProTheme(content: @Composable () -> Unit) {
     )
 }
 
-/** Scale visual controls and their touch targets together, preserving system font scaling. */
+/** Keep screen density unchanged; only interactive controls opt into enlargement. */
+val LocalLargerControls = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 @Composable
 fun LargerControls(enabled: Boolean, content: @Composable () -> Unit) {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val controlDensity = androidx.compose.ui.unit.Density(
-        density.density * if (enabled) 1.2f else 1f,
-        density.fontScale
-    )
-    androidx.compose.runtime.CompositionLocalProvider(
-        androidx.compose.ui.platform.LocalDensity provides controlDensity,
-        content = content
-    )
+    androidx.compose.runtime.CompositionLocalProvider(LocalLargerControls provides enabled, content = content)
 }

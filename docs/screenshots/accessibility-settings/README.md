@@ -1,3 +1,5 @@
+> Historical captures from the initial implementation. See [the corrected control sizing](../control-sizing-fix/README.md) for current screenshots.
+
 # Settings and accessibility review
 
 Verified on Android 35 emulator `TimeTrackerTauriQA35`, at 1080 x 1920 / 480 dpi (360 dp width), on 2026-10-20.
