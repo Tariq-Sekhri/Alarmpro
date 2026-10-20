@@ -310,7 +310,19 @@ fun AlarmEditScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (settings.timePickerStyle == TimePickerStyle.ANALOG) {
-                    TimePicker(state = timePickerState)
+                    // Material's analog picker has a fixed intrinsic width. Fit that one
+                    // component on compact screens instead of clipping its AM/PM controls.
+                    androidx.compose.foundation.layout.BoxWithConstraints {
+                        val density = androidx.compose.ui.platform.LocalDensity.current
+                        val scale = (maxWidth.value / 360f).coerceAtMost(1f)
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+                                density.density * scale, density.fontScale
+                            )
+                        ) {
+                            TimePicker(state = timePickerState)
+                        }
+                    }
                 } else {
                     WheelTimePicker(
                         hour = selectedHour,
@@ -349,7 +361,7 @@ fun AlarmEditScreen(
                         }
                         repeatMenuExpanded = false
                     },
-                    modifier = Modifier.width(210.dp)
+                    modifier = Modifier.weight(1f)
                 )
             }
             Box(modifier = Modifier.fillMaxWidth().heightIn(min = 176.dp)) {

@@ -655,118 +655,134 @@ private fun TimerPresetCard(
                 }
             )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (sortMode == TimerSortMode.MANUAL && !selectionMode && group == null) {
-                Icon(
-                    Icons.Default.DragHandle,
-                    contentDescription = "Reorder",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = dragModifier.padding(end = 8.dp)
-                )
-            }
-            if (selectionMode) {
-                Checkbox(checked = selected, onCheckedChange = { onToggleSelection() })
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = TimeUtils.formatDuration(displaySeconds.toLong()),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.combinedClickable(
-                        onClick = { if (selectionMode) onToggleSelection() else onEdit() },
-                        onLongClick = {
-                            if (selectionMode) onToggleSelection() else onEnterSelection()
-                        }
-                    )
-                )
-                val displayLabel = TimerGrouping.effectiveLabel(preset, group, indexInGroup)
-                if (displayLabel.isNotBlank()) {
-                    Text(
-                        text = displayLabel,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            if (!selectionMode) {
-                if (usePlayPauseButton) {
-                    IconButton(onClick = { onToggle(!isRunning) }) {
-                        Icon(
-                            imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isRunning) "Pause timer" else "Start timer",
-                            tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = onRestart) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Restart timer",
-                            tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    IconButton(onClick = onRestart) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Restart timer",
-                            tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = isRunning,
-                        onCheckedChange = onToggle,
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = ElectricCyan.copy(alpha = 0.4f),
-                            checkedThumbColor = ElectricCyan
-                        )
-                    )
-                }
-                
-                var showMenu by remember { mutableStateOf(false) }
-                Box {
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Timer options")
-                    }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Edit timer") },
-                            onClick = {
-                                showMenu = false
-                                onEdit()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-                        )
-                        if (group != null) {
-                            DropdownMenuItem(
-                                text = { Text("Remove from group") },
-                                onClick = {
-                                    showMenu = false
-                                    onRemoveFromGroup()
-                                },
-                                leadingIcon = { Icon(Icons.Default.FolderOff, contentDescription = null) }
+        androidx.compose.foundation.layout.BoxWithConstraints {
+            val compact = maxWidth < 340.dp
+            val controls: @Composable () -> Unit = {
+                if (!selectionMode) {
+                    if (usePlayPauseButton) {
+                        IconButton(onClick = { onToggle(!isRunning) }) {
+                            Icon(
+                                imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isRunning) "Pause timer" else "Start timer",
+                                tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        DropdownMenuItem(
-                            text = { Text("Delete timer") },
-                            onClick = {
-                                showMenu = false
-                                onDelete()
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error
+                        IconButton(onClick = onRestart) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Restart timer",
+                                tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = onRestart) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Restart timer",
+                                tint = if (isRunning) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isRunning,
+                            onCheckedChange = onToggle,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = ElectricCyan.copy(alpha = 0.4f),
+                                checkedThumbColor = ElectricCyan
+                            )
+                        )
+                    }
+                
+                    var showMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Timer options")
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Edit timer") },
+                                onClick = {
+                                    showMenu = false
+                                    onEdit()
+                                },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                            )
+                            if (group != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Remove from group") },
+                                    onClick = {
+                                        showMenu = false
+                                        onRemoveFromGroup()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.FolderOff, contentDescription = null) }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text("Delete timer") },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (sortMode == TimerSortMode.MANUAL && !selectionMode && group == null) {
+                        Icon(
+                            Icons.Default.DragHandle,
+                            contentDescription = "Reorder",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = dragModifier.padding(end = 8.dp)
                         )
+                    }
+                    if (selectionMode) {
+                        Checkbox(checked = selected, onCheckedChange = { onToggleSelection() })
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = TimeUtils.formatDuration(displaySeconds.toLong()),
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.combinedClickable(
+                                onClick = { if (selectionMode) onToggleSelection() else onEdit() },
+                                onLongClick = {
+                                    if (selectionMode) onToggleSelection() else onEnterSelection()
+                                }
+                            )
+                        )
+                        val displayLabel = TimerGrouping.effectiveLabel(preset, group, indexInGroup)
+                        if (displayLabel.isNotBlank()) {
+                            Text(
+                                text = displayLabel,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    if (!compact) controls()
+                }
+                if (compact && !selectionMode) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        controls()
                     }
                 }
             }

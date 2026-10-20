@@ -49,6 +49,8 @@ data class AppSettings(
     val silentNotifications: Boolean = false,
     val defaultAlarmSortMode: AlarmSortMode = AlarmSortMode.TIME_OF_DAY,
     val activeAlarmsFirst: Boolean = false,
+    val rememberLastTab: Boolean = false,
+    val largerButtons: Boolean = false,
     val notesEnabled: Boolean = false,
     val notesText: String = ""
 ) {

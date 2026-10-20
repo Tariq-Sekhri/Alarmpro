@@ -191,6 +191,18 @@ fun GeneralSettingsScreen(
         ) {
             SettingsCategoryHeader("Display")
             SettingsSwitchRow(
+                title = "Larger buttons",
+                subtitle = "Enlarge buttons, controls and labels for easier tapping",
+                checked = settings.largerButtons,
+                onCheckedChange = { viewModel.updateSettings(settings.copy(largerButtons = it)) }
+            )
+            SettingsSwitchRow(
+                title = "Remember last tab",
+                subtitle = "Reopen the last used Alarm, Timer, Stopwatch or Clock tab",
+                checked = settings.rememberLastTab,
+                onCheckedChange = { viewModel.updateSettings(settings.copy(rememberLastTab = it)) }
+            )
+            SettingsSwitchRow(
                 title = "Military time",
                 subtitle = "Use 24-hour time, for example 18:30",
                 checked = settings.use24HourFormat,

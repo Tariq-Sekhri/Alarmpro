@@ -116,32 +116,35 @@ class MainActivity : ComponentActivity() {
         setPipDismissNotifier(::dismissPip)
 
         setContent {
-            AlarmProTheme {
-                val pipActive = isInPipMode || isEnteringPip
-                PipTimerSync(
-                    isInPipMode = isInPipMode,
-                    pipContent = pipContent,
-                    timerViewModel = timerViewModel,
-                    onPipContentChanged = ::updatePipContent
-                )
-                if (pipActive) {
-                    if (pipContent != null) {
-                        PipDisplay(content = pipContent!!)
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0xFF101824))
-                        )
-                    }
-                } else {
-                    MainScreen(
-                        alarmViewModel = alarmViewModel,
-                        timerViewModel = timerViewModel,
-                        intentFlow = intentFlow,
+            val appSettings by alarmViewModel.settings.collectAsState()
+            ca.sekhrit.alarmpro.ui.theme.LargerControls(appSettings.largerButtons) {
+                AlarmProTheme {
+                    val pipActive = isInPipMode || isEnteringPip
+                    PipTimerSync(
                         isInPipMode = isInPipMode,
+                        pipContent = pipContent,
+                        timerViewModel = timerViewModel,
                         onPipContentChanged = ::updatePipContent
                     )
+                    if (pipActive) {
+                        if (pipContent != null) {
+                            PipDisplay(content = pipContent!!)
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFF101824))
+                            )
+                        }
+                    } else {
+                        MainScreen(
+                            alarmViewModel = alarmViewModel,
+                            timerViewModel = timerViewModel,
+                            intentFlow = intentFlow,
+                            isInPipMode = isInPipMode,
+                            onPipContentChanged = ::updatePipContent
+                        )
+                    }
                 }
             }
         }
@@ -608,7 +611,18 @@ fun MainScreen(
     
     val settings by alarmViewModel.settings.collectAsState()
     val tabs = listOf("alarm", "timer", "stopwatch", "clock") + if (settings.notesEnabled) listOf("notes") else emptyList()
-    val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settingsRepository = remember(context) { ca.sekhrit.alarmpro.data.SettingsRepository(context) }
+    val initialTab = remember {
+        if (settings.rememberLastTab) tabs.indexOf(settingsRepository.loadLastTab()).coerceAtLeast(0) else 0
+    }
+    val pagerState = rememberPagerState(initialPage = initialTab, pageCount = { tabs.size })
+    LaunchedEffect(pagerState, settings.rememberLastTab) {
+        if (settings.rememberLastTab) {
+            androidx.compose.runtime.snapshotFlow { pagerState.settledPage }
+                .collect { page -> tabs.getOrNull(page)?.let(settingsRepository::saveLastTab) }
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "home"

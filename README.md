@@ -45,6 +45,8 @@ Alarmpro is an open-source Android alarm clock app built with Kotlin and Jetpack
 ### Settings
 - Default alarm behavior (snooze, vibration, speak label)
 - Timer and general app settings
+- Optional last-tab restoration on launch (off by default)
+- Optional larger buttons, controls, and labels for easier tapping (off by default)
 
 ## Requirements
 

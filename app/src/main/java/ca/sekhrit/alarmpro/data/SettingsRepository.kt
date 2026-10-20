@@ -61,6 +61,8 @@ class SettingsRepository(context: Context) {
                 AlarmSortMode.TIME_OF_DAY
             },
             activeAlarmsFirst = prefs.getBoolean(KEY_ACTIVE_ALARMS_FIRST, false),
+            rememberLastTab = prefs.getBoolean(KEY_REMEMBER_LAST_TAB, false),
+            largerButtons = prefs.getBoolean(KEY_LARGER_BUTTONS, false),
             notesEnabled = prefs.getBoolean(KEY_NOTES_ENABLED, false),
             notesText = prefs.getString(KEY_NOTES_TEXT, "").orEmpty()
         )
@@ -95,12 +97,23 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_SILENT_NOTIFICATIONS, settings.silentNotifications)
             .putString(KEY_DEFAULT_ALARM_SORT_MODE, settings.defaultAlarmSortMode.name)
             .putBoolean(KEY_ACTIVE_ALARMS_FIRST, settings.activeAlarmsFirst)
+            .putBoolean(KEY_REMEMBER_LAST_TAB, settings.rememberLastTab)
+            .putBoolean(KEY_LARGER_BUTTONS, settings.largerButtons)
             .putBoolean(KEY_NOTES_ENABLED, settings.notesEnabled)
             .putString(KEY_NOTES_TEXT, settings.notesText)
             .apply()
     }
 
+    fun loadLastTab(): String = prefs.getString(KEY_LAST_TAB, "alarm") ?: "alarm"
+
+    fun saveLastTab(tab: String) {
+        prefs.edit().putString(KEY_LAST_TAB, tab).apply()
+    }
+
     companion object {
+        private const val KEY_REMEMBER_LAST_TAB = "remember_last_tab"
+        private const val KEY_LARGER_BUTTONS = "larger_buttons"
+        private const val KEY_LAST_TAB = "last_tab"
         private const val PREFS_NAME = "alarmpro_prefs"
         private const val KEY_DEFAULT_SNOOZE_ENABLED = "default_snooze_enabled"
         private const val KEY_DEFAULT_SNOOZE_MINUTES = "default_snooze_minutes"
