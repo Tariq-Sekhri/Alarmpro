@@ -92,6 +92,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import ca.sekhrit.alarmpro.ui.components.TextButton
 import ca.sekhrit.alarmpro.data.Alarm
+import ca.sekhrit.alarmpro.ui.components.GroupRepeatDialog
 import ca.sekhrit.alarmpro.data.AlarmSortMode
 import ca.sekhrit.alarmpro.data.isSnoozeAllowed
 import ca.sekhrit.alarmpro.data.resolveSnoozeMinutes
@@ -130,6 +131,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
     val activeAlarmsFirst = settings.activeAlarmsFirst
     var showSortMenu by remember { mutableStateOf(false) }
     var renameGroupId by remember { mutableStateOf<String?>(null) }
+    var repeatGroupId by remember { mutableStateOf<String?>(null) }
     var renameGroupLabel by remember { mutableStateOf("") }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -235,6 +237,21 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
 
     BackHandler(enabled = showSearch && !selectionMode) {
         closeSearch()
+    }
+
+    repeatGroupId?.let { groupId ->
+        groups.find { it.id == groupId }?.let { group ->
+            val members = allAlarms.filter { it.groupId == groupId }
+            GroupRepeatDialog(
+                groupLabel = group.label,
+                schedules = members.map { it.repeat },
+                onDismiss = { repeatGroupId = null },
+                onSave = { schedule ->
+                    viewModel.setGroupRepeat(groupId, schedule)
+                    repeatGroupId = null
+                }
+            )
+        }
     }
 
     renameGroupId?.let { groupId ->
@@ -669,6 +686,7 @@ fun AlarmScreen(    onOpenSettings: () -> Unit,
                                     }
                                 },
                                 onSkipNext = { viewModel.skipNextGroup(entry.group.id) },
+                                onSetRepeat = { repeatGroupId = entry.group.id },
                                 onRename = {
                                     renameGroupId = entry.group.id
                                     renameGroupLabel = entry.group.label
@@ -815,6 +833,7 @@ private fun GroupHeaderCard(
     onToggleExpand: () -> Unit,
     onToggleEnabled: () -> Unit,
     onSkipNext: () -> Unit,
+    onSetRepeat: () -> Unit,
     onRename: () -> Unit,
     onUngroup: () -> Unit,
     onDeleteGroup: () -> Unit,
@@ -906,6 +925,14 @@ private fun GroupHeaderCard(
                     Icon(Icons.Default.MoreVert, contentDescription = "Group options")
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Set repeating rules") },
+                    onClick = {
+                        showMenu = false
+                        onSetRepeat()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Repeat, contentDescription = null) }
+                )
                 DropdownMenuItem(
                     text = { Text(if (allSkipped && skipScheduled) "Cancel skip" else "Skip next time") },
                     onClick = {

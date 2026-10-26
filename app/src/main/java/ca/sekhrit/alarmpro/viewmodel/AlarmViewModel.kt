@@ -1,5 +1,7 @@
 package ca.sekhrit.alarmpro.viewmodel
 
+import ca.sekhrit.alarmpro.data.withRepeatSchedule
+
 
 
 import android.app.Application
@@ -468,6 +470,19 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
+
+    fun setGroupRepeat(groupId: String, repeat: RepeatSchedule) {
+        if (_groups.value.none { it.id == groupId }) return
+        val updated = _alarms.value.map { alarm ->
+            if (alarm.groupId != groupId) alarm
+            else normalizeOneTimeAlarm(alarm.withRepeatSchedule(repeat))
+        }
+        persistAlarms(updated)
+        updated.filter { it.groupId == groupId }.forEach {
+            scheduler.cancel(it)
+            reschedule(it)
+        }
+    }
 
     fun skipNextGroup(groupId: String) {
 

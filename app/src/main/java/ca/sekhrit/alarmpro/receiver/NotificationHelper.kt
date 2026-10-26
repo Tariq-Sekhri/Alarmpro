@@ -45,7 +45,8 @@ object NotificationHelper {
 
     private data class NotificationControl(
         val label: String,
-        val pendingIntent: PendingIntent
+        val pendingIntent: PendingIntent,
+        val icon: Int
     )
 
     fun canPostNotifications(context: Context): Boolean {
@@ -244,14 +245,14 @@ object NotificationHelper {
             context,
             title,
             content,
-            listOf(NotificationControl(actionLabel, actionPendingIntent))
+            listOf(NotificationControl(actionLabel, actionPendingIntent, R.drawable.ic_notification_close))
         )
         val notification = NotificationCompat.Builder(context, UPCOMING_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(content)
-            .setCustomContentView(controls)
-            .setCustomBigContentView(controls)
+            .setCustomContentView(controls.compact)
+            .setCustomBigContentView(controls.expanded)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setGroup(isolatedNotificationGroup("upcoming", upcomingNotificationId(alarmId)))
@@ -427,8 +428,9 @@ object NotificationHelper {
             remaining,
             timerSubtext,
             listOf(
-                NotificationControl(if (isPaused) "Resume" else "Pause", timerActionPendingIntent),
-                NotificationControl("Close", closePendingIntent)
+                NotificationControl(if (isPaused) "Resume" else "Pause", timerActionPendingIntent,
+                    if (isPaused) R.drawable.ic_notification_play else R.drawable.ic_notification_pause),
+                NotificationControl("Close", closePendingIntent, R.drawable.ic_notification_close)
             ),
             chronometerBaseElapsedRealtime = if (isPaused) null else {
                 SystemClock.elapsedRealtime() + (timer.endTimeMillis - System.currentTimeMillis())
@@ -440,8 +442,8 @@ object NotificationHelper {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(timerSubtext)
-            .setCustomContentView(controls)
-            .setCustomBigContentView(controls)
+            .setCustomContentView(controls.compact)
+            .setCustomBigContentView(controls.expanded)
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
@@ -562,9 +564,10 @@ object NotificationHelper {
             stopwatchText,
             null,
             listOf(
-                NotificationControl(if (isRunning) "Pause" else "Resume", pauseResumePendingIntent),
-                NotificationControl("Lap", lapPendingIntent),
-                NotificationControl("Stop", stopPendingIntent)
+                NotificationControl(if (isRunning) "Pause" else "Resume", pauseResumePendingIntent,
+                    if (isRunning) R.drawable.ic_notification_pause else R.drawable.ic_notification_play),
+                NotificationControl("Lap", lapPendingIntent, R.drawable.ic_notification_lap),
+                NotificationControl("Stop", stopPendingIntent, R.drawable.ic_notification_stop)
             ),
             chronometerBaseElapsedRealtime = if (isRunning) chronometerBaseElapsedRealtime else null
         )
@@ -572,8 +575,8 @@ object NotificationHelper {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(stopwatchText)
             .setContentText(null)
-            .setCustomContentView(controls)
-            .setCustomBigContentView(controls)
+            .setCustomContentView(controls.compact)
+            .setCustomBigContentView(controls.expanded)
             .setShowWhen(false)
             .setUsesChronometer(isRunning)
             .setWhen(chronometerBaseWallClock)
@@ -686,6 +689,8 @@ object NotificationHelper {
         }.toBundle()
     }
 
+    private data class NotificationLayouts(val compact: RemoteViews, val expanded: RemoteViews)
+
     private fun notificationControls(
         context: Context,
         title: String,
@@ -694,58 +699,71 @@ object NotificationHelper {
         chronometerBaseElapsedRealtime: Long? = null,
         chronometerCountsDown: Boolean = false,
         titleSuffix: String? = null
-    ): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.notification_controls)
-        val colors = notificationTextColors(context)
-        views.setTextColor(R.id.notification_title, colors.title)
-        views.setTextColor(R.id.notification_title_suffix, colors.title)
-        views.setTextColor(R.id.notification_subtitle, colors.subtitle)
-        if (chronometerBaseElapsedRealtime == null) {
-            views.setTextViewText(R.id.notification_title, title)
-        } else {
-            views.setChronometer(
-                R.id.notification_title,
-                chronometerBaseElapsedRealtime,
-                null,
-                true
-            )
-            views.setChronometerCountDown(
-                R.id.notification_title,
-                chronometerCountsDown
-            )
-        }
-        views.setViewVisibility(
-            R.id.notification_title_suffix,
-            if (titleSuffix == null) View.GONE else View.VISIBLE
-        )
-        if (titleSuffix != null) {
-            views.setTextViewText(R.id.notification_title_suffix, titleSuffix)
-        }
-        views.setViewVisibility(
-            R.id.notification_subtitle,
-            if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
-        )
-        if (!subtitle.isNullOrBlank()) {
-            views.setTextViewText(R.id.notification_subtitle, subtitle)
-        }
-
-        val actionViewIds = intArrayOf(
-            R.id.notification_action_one,
-            R.id.notification_action_two,
-            R.id.notification_action_three
-        )
-        actionViewIds.forEachIndexed { index, viewId ->
-            val control = controls.getOrNull(index)
-            if (control == null) {
-                views.setViewVisibility(viewId, View.GONE)
+    ): NotificationLayouts {
+        fun create(compact: Boolean): RemoteViews {
+            val views = RemoteViews(context.packageName, if (compact) {
+                R.layout.notification_controls_compact
             } else {
-                views.setViewVisibility(viewId, View.VISIBLE)
-                views.setTextViewText(viewId, control.label)
-                views.setTextColor(viewId, colors.action)
-                views.setOnClickPendingIntent(viewId, control.pendingIntent)
+                R.layout.notification_controls
+            })
+            val colors = notificationTextColors(context)
+            views.setTextColor(R.id.notification_title, colors.title)
+            views.setTextColor(R.id.notification_title_suffix, colors.title)
+            if (!compact) views.setTextColor(R.id.notification_subtitle, colors.subtitle)
+            if (chronometerBaseElapsedRealtime == null) {
+                views.setTextViewText(R.id.notification_title, title)
+            } else {
+                views.setChronometer(
+                    R.id.notification_title,
+                    chronometerBaseElapsedRealtime,
+                    null,
+                    true
+                )
+                views.setChronometerCountDown(
+                    R.id.notification_title,
+                    chronometerCountsDown
+                )
             }
+            views.setViewVisibility(
+                R.id.notification_title_suffix,
+                if (compact || titleSuffix == null) View.GONE else View.VISIBLE
+            )
+            if (titleSuffix != null) {
+                views.setTextViewText(R.id.notification_title_suffix, titleSuffix)
+            }
+            if (!compact) views.setViewVisibility(
+                R.id.notification_subtitle,
+                if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
+            )
+            if (!compact && !subtitle.isNullOrBlank()) {
+                views.setTextViewText(R.id.notification_subtitle, subtitle)
+            }
+
+            val actionViewIds = intArrayOf(
+                R.id.notification_action_one,
+                R.id.notification_action_two,
+                R.id.notification_action_three
+            )
+            actionViewIds.forEachIndexed { index, viewId ->
+                val control = controls.getOrNull(index)
+                if (control == null) {
+                    views.setViewVisibility(viewId, View.GONE)
+                } else {
+                    views.setViewVisibility(viewId, View.VISIBLE)
+                    if (compact) {
+                        views.setImageViewResource(viewId, control.icon)
+                        views.setInt(viewId, "setColorFilter", colors.action)
+                    } else {
+                        views.setTextViewText(viewId, control.label)
+                        views.setTextColor(viewId, colors.action)
+                    }
+                    views.setContentDescription(viewId, control.label)
+                    views.setOnClickPendingIntent(viewId, control.pendingIntent)
+                }
+            }
+            return views
         }
-        return views
+        return NotificationLayouts(create(compact = true), create(compact = false))
     }
 
     private data class NotificationTextColors(

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ can limit collapsed custom content to 48dp. Keep actions in
+     the same row as the title, independent of the user's font scale. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Chronometer
+            android:id="@+id/notification_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/notification_title_suffix"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/notification_action_one"
+        android:layout_width="40dp"
+        android:layout_height="48dp"
+        android:background="@drawable/notification_action_background"
+        android:padding="8dp" />
+
+    <ImageView
+        android:id="@+id/notification_action_two"
+        android:layout_width="40dp"
+        android:layout_height="48dp"
+        android:background="@drawable/notification_action_background"
+        android:padding="8dp" />
+
+    <ImageView
+        android:id="@+id/notification_action_three"
+        android:layout_width="40dp"
+        android:layout_height="48dp"
+        android:background="@drawable/notification_action_background"
+        android:padding="8dp" />
+</LinearLayout>
