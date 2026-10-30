@@ -43,7 +43,8 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.ui.res.painterResource
+import ca.sekhrit.alarmpro.R
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -939,7 +940,7 @@ private fun GroupHeaderCard(
                         showMenu = false
                         onSkipNext()
                     },
-                    leadingIcon = { Icon(Icons.Default.SkipNext, contentDescription = null) }
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_notification_skip), contentDescription = null) }
                 )
                 DropdownMenuItem(
                     text = { Text("Rename group") },
@@ -1211,7 +1212,7 @@ private fun AlarmCard(
                     },
                     enabled = alarm.isEnabled,
                     leadingIcon = {
-                        Icon(Icons.Default.SkipNext, contentDescription = null)
+                        Icon(painterResource(R.drawable.ic_notification_skip), contentDescription = null)
                     }
                 )
                 DropdownMenuItem(
@@ -1273,7 +1274,7 @@ private fun SelectionBottomBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SelectionActionButton(
-                    icon = { Icon(Icons.Default.SkipNext, contentDescription = null) },
+                    icon = { Icon(painterResource(R.drawable.ic_notification_skip), contentDescription = null) },
                     label = "Skip",
                     onClick = onSkipNext
                 )

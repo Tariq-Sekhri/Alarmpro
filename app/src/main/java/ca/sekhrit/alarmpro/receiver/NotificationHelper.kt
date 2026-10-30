@@ -245,7 +245,11 @@ object NotificationHelper {
             context,
             title,
             content,
-            listOf(NotificationControl(actionLabel, actionPendingIntent, R.drawable.ic_notification_close))
+            listOf(NotificationControl(
+                actionLabel,
+                actionPendingIntent,
+                if (isRepeating) R.drawable.ic_notification_skip else R.drawable.ic_notification_close
+            ))
         )
         val notification = NotificationCompat.Builder(context, UPCOMING_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
