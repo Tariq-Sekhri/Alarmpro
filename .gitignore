@@ -19,3 +19,6 @@ local.properties
 *.ap_
 *.aab
 gha-creds-*.json
+/AGENTS.md
+/CLAUDE.md
+/private/
